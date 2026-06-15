@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-lora: 'Lora', Georgia, serif;
+  --font-inter: 'Inter', system-ui, sans-serif;
+}
+
+html, body {
+  @apply bg-cream text-charcoal;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* Mobile viewport fix */
+body { min-height: 100dvh; }
+
+/* Tap highlight */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 0; background: transparent; }
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5
+           bg-sage text-white font-medium text-sm
+           shadow-[0_4px_16px_rgba(122,158,142,0.35)]
+           active:scale-[.97] active:bg-sage-dark transition-all duration-200;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5
+           border border-sage text-sage font-medium text-sm
+           active:bg-sage/10 transition-all duration-200;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5
+           text-charcoal-mid font-medium text-sm
+           active:text-charcoal transition-all duration-200;
+  }
+  .card {
+    @apply bg-white rounded-2xl border border-border p-5 shadow-card;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium
+           border border-border bg-white text-charcoal-mid
+           cursor-pointer transition-all duration-200 active:scale-95;
+  }
+  .chip-active {
+    @apply bg-sage border-sage text-white;
+  }
+  .tag-sage {
+    @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide
+           bg-sage/15 text-sage-dark;
+  }
+  .tag-rose {
+    @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide
+           bg-rose/15 text-rose-dark;
+  }
+  .tag-warm {
+    @apply inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide
+           bg-amber-100 text-amber-800;
+  }
+  .input-field {
+    @apply w-full rounded-xl border border-border bg-white px-4 py-3.5
+           text-sm text-charcoal placeholder:text-muted
+           focus:outline-none focus:ring-2 focus:ring-sage/30 focus:border-sage
+           transition-all duration-200;
+  }
+  .screen-pad {
+    @apply px-5;
+  }
+}
+
+@layer utilities {
+  .font-serif { font-family: var(--font-lora); }
+  .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .fade-up {
+    animation: fadeUp 0.45s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .breathe {
+    animation: breathe 3s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+}

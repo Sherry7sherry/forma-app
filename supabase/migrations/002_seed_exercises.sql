@@ -1,0 +1,320 @@
+-- ═══════════════════════════════════════════════════════════════
+--  Forma — Exercise Library Seed Data (30 Pilates exercises)
+--  Run after 001_initial.sql
+-- ═══════════════════════════════════════════════════════════════
+
+insert into public.exercises
+  (name, description, instructions, target_muscles, category, difficulty, duration_type, default_reps, pose_definition, is_pro)
+values
+
+-- ── CORE / SPINE ─────────────────────────────────────────────
+('Pelvic Tilts',
+ 'A foundational movement that mobilises the lumbar spine and activates deep core muscles.',
+ ARRAY['Lie on your back, knees bent, feet flat','Inhale to prepare','Exhale, gently tilt pelvis toward ribs — lower back presses into mat','Inhale, return to neutral','Move only your pelvis, keep upper body still'],
+ ARRAY['transverse abdominis','multifidus','glutes'],
+ 'spine', 'gentle', 'reps', 12,
+ '{"key_angles":[{"joint":"lumbar_spine","min_degrees":0,"max_degrees":15,"landmark_indices":[23,24,11]}],"alignment_cues":[{"condition":"spine_neutral","feedback_good":"Spine aligned ✓","feedback_warn":"Avoid arching your lower back"}],"common_mistakes":["Holding breath","Moving upper back instead of pelvis"]}',
+ false),
+
+('Cat-Cow Stretch',
+ 'Rhythmic spinal flexion and extension that lubricates the vertebrae and releases tension.',
+ ARRAY['Start on hands and knees, wrists under shoulders, knees under hips','Inhale — drop belly, lift chest and tailbone (Cow)','Exhale — round spine toward ceiling, tuck chin and pelvis (Cat)','Move vertebra by vertebra, breath leads the movement'],
+ ARRAY['erector_spinae','multifidus','rectus_abdominis'],
+ 'spine', 'gentle', 'reps', 10,
+ '{"key_angles":[{"joint":"thoracic_spine","min_degrees":-20,"max_degrees":20,"landmark_indices":[11,12,23]}],"alignment_cues":[{"condition":"cat_position","feedback_good":"Full spinal flexion ✓","feedback_warn":"Round through your whole spine, not just lower back"}],"common_mistakes":["Only moving lower back","Rushing the movement"]}',
+ false),
+
+('Spine Twist',
+ 'Seated rotation that mobilises the thoracic spine and stretches the obliques.',
+ ARRAY['Sit tall, legs extended or crossed','Arms in a T or hands behind head','Inhale to grow tall','Exhale, rotate from your waist — keep hips square','Return to centre on inhale','Alternate sides with control'],
+ ARRAY['obliques','thoracic_extensors','hip_flexors'],
+ 'spine', 'moderate', 'reps', 8,
+ '{"key_angles":[{"joint":"thoracic_rotation","min_degrees":30,"max_degrees":60,"landmark_indices":[11,12,23]}],"alignment_cues":[{"condition":"rotation","feedback_good":"Good thoracic rotation ✓","feedback_warn":"Keep both sit bones grounded"}],"common_mistakes":["Leaning instead of rotating","Hips lifting off"]}',
+ false),
+
+('Swan Prep',
+ 'Prone extension that strengthens the back extensors and opens the chest.',
+ ARRAY['Lie face down, hands under shoulders','Draw shoulder blades back and down','Inhale to prepare','Exhale, press through hands to lift chest off mat','Keep elbows slightly bent, neck long','Inhale at top, exhale to lower with control'],
+ ARRAY['erector_spinae','rhomboids','gluteus_maximus'],
+ 'spine', 'moderate', 'reps', 10,
+ '{"key_angles":[{"joint":"lumbar_extension","min_degrees":10,"max_degrees":35,"landmark_indices":[11,23,25]}],"alignment_cues":[{"condition":"extension","feedback_good":"Good spinal extension ✓","feedback_warn":"Keep your neck in line with your spine"}],"common_mistakes":["Crunching lower back","Squeezing glutes too hard","Neck jutting forward"]}',
+ false),
+
+('Child''s Pose Hold',
+ 'A restorative stretch that lengthens the spine and releases the lower back and hips.',
+ ARRAY['Kneel with knees hip-width apart, big toes touching','Sit back toward heels','Walk hands forward, lower chest toward mat','Hold and breathe deeply into your back body','Let forehead rest on mat'],
+ ARRAY['latissimus_dorsi','quadratus_lumborum','hip_extensors'],
+ 'spine', 'gentle', 'hold', 45,
+ null,
+ false),
+
+('Rolling Like a Ball',
+ 'A massage for the spine that challenges balance and builds body awareness.',
+ ARRAY['Sit at edge of mat, knees to chest','Hold shins, curl spine into a C-curve','Balance on tailbone, feet off mat','Inhale, roll back to shoulder blades (not neck)','Exhale, roll up to balance','Use your core to control the movement — do not use momentum'],
+ ARRAY['deep_abdominals','hip_flexors','spinal_extensors'],
+ 'core', 'moderate', 'reps', 8,
+ '{"key_angles":[],"alignment_cues":[{"condition":"c_curve","feedback_good":"C-curve maintained ✓","feedback_warn":"Keep your chin tucked to protect your neck"}],"common_mistakes":["Rolling onto neck","Losing C-curve at top"]}',
+ false),
+
+-- ── CORE ─────────────────────────────────────────────────────
+('Hundred',
+ 'The signature Pilates warm-up that activates the deep core and gets circulation flowing.',
+ ARRAY['Lie on back, legs in tabletop (90°) or extended at 45°','Curl head and shoulders off mat, gaze at knees','Arms long by your sides, hover above mat','Pump arms up and down 2 inches in a controlled rhythm','Inhale for 5 pumps, exhale for 5 pumps — 100 total'],
+ ARRAY['transverse_abdominis','rectus_abdominis','hip_flexors'],
+ 'core', 'moderate', 'reps', 100,
+ '{"key_angles":[{"joint":"hip_flexion","min_degrees":45,"max_degrees":90,"landmark_indices":[23,25,27]}],"alignment_cues":[{"condition":"curl_up","feedback_good":"Good curl-up position ✓","feedback_warn":"Keep lower back pressed into mat"}],"common_mistakes":["Neck strain","Lower back arching","Breath held"]}',
+ false),
+
+('Single Leg Stretch',
+ 'A dynamic core exercise that challenges coordination and deep abdominal control.',
+ ARRAY['Lie on back, curl head and shoulders off mat','Bring right knee to chest, extend left leg to 45°','Right hand on right ankle, left hand on right knee','Switch legs in a cycling motion','Keep lower back imprinted on mat throughout'],
+ ARRAY['rectus_abdominis','transverse_abdominis','hip_flexors'],
+ 'core', 'moderate', 'reps', 10,
+ '{"key_angles":[{"joint":"hip_extension","min_degrees":40,"max_degrees":60,"landmark_indices":[23,25,27]}],"alignment_cues":[{"condition":"leg_extension","feedback_good":"Core engaged ✓","feedback_warn":"Lower your leg if lower back lifts"}],"common_mistakes":["Losing curl-up","Pulling on neck","Jerky movement"]}',
+ false),
+
+('Plank Hold',
+ 'Full-body stability that builds core endurance and shoulder strength.',
+ ARRAY['Start on hands or forearms, wrists under shoulders','Step feet back to a long line','Draw navel toward spine','Keep hips level — no piking or sagging','Breathe naturally, hold with intention'],
+ ARRAY['transverse_abdominis','serratus_anterior','glutes','quadriceps'],
+ 'core', 'challenging', 'hold', 30,
+ '{"key_angles":[{"joint":"hip_alignment","min_degrees":-5,"max_degrees":5,"landmark_indices":[11,23,25]}],"alignment_cues":[{"condition":"hip_neutral","feedback_good":"Hips level ✓","feedback_warn":"Lower your hips slightly"}],"common_mistakes":["Hips piking","Lower back sagging","Breath holding"]}',
+ true),
+
+('Dead Bug',
+ 'A deep stabilisation exercise that trains the core to resist rotation and extension.',
+ ARRAY['Lie on back, arms to ceiling, knees above hips at 90°','Press lower back firmly into mat','Inhale to prepare','Exhale, slowly lower right arm and left leg toward mat','Return to start, switch sides','Lower back must stay on mat throughout'],
+ ARRAY['transverse_abdominis','multifidus','obliques'],
+ 'core', 'moderate', 'reps', 8,
+ null,
+ false),
+
+-- ── HIPS ─────────────────────────────────────────────────────
+('Hip Flexor Release (Lunge Stretch)',
+ 'A deep stretch for the iliopsoas and hip flexors — essential after sitting or recovery.',
+ ARRAY['Step right foot forward into a low lunge','Lower left knee to mat (use a pad if needed)','Tuck pelvis gently under, feel stretch in left hip','Raise arms or keep hands on front knee','Hold and breathe — let the hip release with each exhale'],
+ ARRAY['iliopsoas','rectus_femoris','hip_flexors'],
+ 'hips', 'gentle', 'hold', 40,
+ null,
+ false),
+
+('Clamshell',
+ 'Activates the hip abductors and external rotators — key for knee and lower back health.',
+ ARRAY['Lie on your side, knees stacked, bent to 90°','Head rests on bottom arm','Keeping feet together, lift top knee toward ceiling','Rotate from the hip — do not roll back','Lower with control, repeat then switch sides'],
+ ARRAY['gluteus_medius','piriformis','hip_external_rotators'],
+ 'hips', 'gentle', 'reps', 15,
+ '{"key_angles":[{"joint":"hip_abduction","min_degrees":30,"max_degrees":50,"landmark_indices":[23,25,27]}],"alignment_cues":[{"condition":"abduction","feedback_good":"Good hip rotation ✓","feedback_warn":"Don't roll your pelvis backward"}],"common_mistakes":["Rolling pelvis","Not going through full range","Rushing"]}',
+ false),
+
+('Glute Bridge',
+ 'Activates the glutes and hamstrings while stabilising the lower back.',
+ ARRAY['Lie on back, knees bent, feet hip-width apart','Arms by sides, palms down','Inhale to prepare','Exhale, press through heels to lift hips off mat','Squeeze glutes at top, keep spine long','Lower vertebra by vertebra on inhale'],
+ ARRAY['gluteus_maximus','hamstrings','transverse_abdominis'],
+ 'hips', 'gentle', 'reps', 12,
+ '{"key_angles":[{"joint":"hip_extension","min_degrees":160,"max_degrees":180,"landmark_indices":[23,25,27]}],"alignment_cues":[{"condition":"bridge","feedback_good":"Hips level ✓","feedback_warn":"Keep both hips even — check for one side dropping"}],"common_mistakes":["Hyperextending spine","Knees falling in","Feet too far from hips"]}',
+ false),
+
+('Fire Hydrant',
+ 'Strengthens hip abductors and improves hip mobility in multiple planes.',
+ ARRAY['Start on hands and knees, wrists under shoulders','Keeping knee bent at 90°, lift right leg out to side','Hip height — no higher','Slowly lower with control','Keep spine neutral throughout — no tilting'],
+ ARRAY['gluteus_medius','tensor_fasciae_latae','hip_abductors'],
+ 'hips', 'moderate', 'reps', 12,
+ null,
+ false),
+
+('Piriformis Stretch',
+ 'Releases the deep hip rotators and eases sciatic nerve tension.',
+ ARRAY['Lie on back, both knees bent','Cross right ankle over left knee (figure-four shape)','Either stay here or draw both legs toward chest','Hold and breathe — deepen the stretch on each exhale','Switch sides'],
+ ARRAY['piriformis','deep_hip_rotators','gluteus_medius'],
+ 'hips', 'gentle', 'hold', 45,
+ null,
+ false),
+
+-- ── SHOULDERS ─────────────────────────────────────────────────
+('Shoulder Rolls',
+ 'Releases tension in the neck and shoulders and improves scapular mobility.',
+ ARRAY['Sit or stand tall','Inhale, draw shoulders up toward ears','Exhale, roll shoulders back and down','Feel chest open with each backward roll','Reverse direction: forward, up, back, down'],
+ ARRAY['trapezius','rhomboids','serratus_anterior'],
+ 'shoulders', 'gentle', 'reps', 10,
+ null,
+ false),
+
+('Thread the Needle',
+ 'A rotational stretch for the thoracic spine and shoulder that releases upper back tightness.',
+ ARRAY['Start on hands and knees','Slide right arm under body along mat, palm up','Let right shoulder and ear rest on mat','Feel the stretch through your upper back and shoulder','Stay or deepen by reaching right arm forward','Hold, then return and switch sides'],
+ ARRAY['thoracic_rotators','posterior_shoulder','rhomboids'],
+ 'shoulders', 'gentle', 'hold', 35,
+ null,
+ false),
+
+('Chest Opener (Arms Behind)',
+ 'Counteracts forward rounding posture by opening the chest and front of shoulders.',
+ ARRAY['Sit or stand tall','Interlace fingers behind your back or hold a strap','Draw shoulder blades together, lift chest','Without crunching lower back, gently lift hands away from body','Hold and breathe into the front of your chest'],
+ ARRAY['pectorals','anterior_deltoid','biceps'],
+ 'shoulders', 'gentle', 'hold', 30,
+ null,
+ false),
+
+('Serratus Punch',
+ 'Activates serratus anterior — the muscle that holds the shoulder blade against the ribcage.',
+ ARRAY['Lie on back, arms to ceiling, fingers spread','Keep lower back on mat','Reach arms further toward ceiling — feel shoulder blades spread apart','Slowly reverse, let shoulder blades pinch together','Control both directions — this is a small but important movement'],
+ ARRAY['serratus_anterior','subscapularis'],
+ 'shoulders', 'moderate', 'reps', 10,
+ null,
+ true),
+
+('Side-Lying Neck Stretch',
+ 'Gently lengthens the neck and upper trapezius on each side.',
+ ARRAY['Lie on your side or sit tall','Let right ear drop toward right shoulder','Keep left shoulder heavy and relaxed — do not hunch','For a deeper stretch, place right hand gently on left side of head','Hold and breathe, then switch sides'],
+ ARRAY['upper_trapezius','levator_scapulae','scalenes'],
+ 'shoulders', 'gentle', 'hold', 30,
+ null,
+ false),
+
+-- ── FULL BODY ─────────────────────────────────────────────────
+('Pilates Push-Up',
+ 'A full-body strength exercise that challenges the core, chest, and arms together.',
+ ARRAY['Start standing, fold forward to mat (bend knees if needed)','Walk hands out to plank position','Lower chest toward mat in one long line','Press back up, maintain core engagement throughout','Walk hands back to feet, roll up slowly'],
+ ARRAY['pectorals','triceps','transverse_abdominis','serratus_anterior'],
+ 'full_body', 'challenging', 'reps', 8,
+ '{"key_angles":[{"joint":"elbow_flexion","min_degrees":60,"max_degrees":90,"landmark_indices":[11,13,15]}],"alignment_cues":[{"condition":"lowering","feedback_good":"Body in one line ✓","feedback_warn":"Keep hips level with shoulders"}],"common_mistakes":["Hips piking","Elbows flaring","Core disengaged"]}',
+ true),
+
+('Teaser Prep',
+ 'Builds toward the full Pilates Teaser by training balance, hip flexor strength, and abdominals.',
+ ARRAY['Lie on back, knees bent, feet off mat at tabletop','Arms reach long by ears','Inhale to prepare','Exhale, curl up — arms reach toward knees','Balance on tailbone, hold 2 breaths','Roll back down with control'],
+ ARRAY['rectus_abdominis','hip_flexors','spinal_extensors'],
+ 'full_body', 'moderate', 'reps', 6,
+ null,
+ true),
+
+('Mermaid Stretch',
+ 'A lateral side stretch that opens the waist, ribs, and obliques.',
+ ARRAY['Sit with both legs folded to one side (or cross-legged)','Right hand on mat for support','Inhale, reach left arm up alongside your ear','Exhale, side-bend toward right hand, lengthening left side','Hold 2 breaths, then return and switch sides'],
+ ARRAY['obliques','quadratus_lumborum','intercostals'],
+ 'full_body', 'gentle', 'hold', 35,
+ null,
+ false),
+
+-- ── COOL DOWN ─────────────────────────────────────────────────
+('Supine Spinal Twist',
+ 'A passive, restorative twist that releases the lower back, hips, and IT band.',
+ ARRAY['Lie on back, draw right knee to chest','Let knee fall across to the left side of the body','Extend right arm out to the right, gaze right','Left hand rests on right knee — gently guide, do not force','Stay 5–8 breaths, then switch sides'],
+ ARRAY['piriformis','IT_band','obliques','lower_back'],
+ 'cool_down', 'gentle', 'hold', 40,
+ null,
+ false),
+
+('Legs Up the Wall',
+ 'An inversion that drains the legs, calms the nervous system, and eases lower back tension.',
+ ARRAY['Sit sideways next to a wall, hip close to it','Swing legs up as you lie back','Rest legs against wall, arms by sides','Relax completely and breathe','Stay 2–5 minutes'],
+ ARRAY['hamstrings','calves','lower_back','nervous_system'],
+ 'cool_down', 'gentle', 'hold', 120,
+ null,
+ false),
+
+('Constructive Rest',
+ 'Semi-supine position that allows the spine to decompress and muscles to completely release.',
+ ARRAY['Lie on back, knees bent, feet flat and hip-width apart','Arms rest comfortably on lower abdomen','Close eyes, soften jaw, release tongue from roof of mouth','Let your back widen and lengthen into the mat','Breathe naturally — stay 3–5 minutes'],
+ ARRAY['paraspinals','psoas','diaphragm'],
+ 'cool_down', 'gentle', 'hold', 180,
+ null,
+ false),
+
+('Doorway Chest Stretch',
+ 'Opens tight pectorals and anterior deltoids — essential for desk workers and new mothers.',
+ ARRAY['Stand in a doorway, arms at 90° on doorframe','Step one foot through, gently shift weight forward','Feel the stretch across your chest and front of shoulders','Do not push into pain — this should feel like a deep release','Hold, breathe, then switch leading foot'],
+ ARRAY['pectorals','anterior_deltoid','coracobrachialis'],
+ 'cool_down', 'gentle', 'hold', 30,
+ null,
+ false),
+
+('Diaphragmatic Breathing',
+ 'Activates the parasympathetic nervous system and teaches correct breathing mechanics.',
+ ARRAY['Lie on back or sit comfortably','Place one hand on chest, one on belly','Inhale slowly through nose — belly rises, chest stays still','Exhale slowly through mouth — belly falls','Aim for 4 counts in, 6 counts out','Do 10 complete breath cycles'],
+ ARRAY['diaphragm','transverse_abdominis','pelvic_floor'],
+ 'cool_down', 'gentle', 'reps', 10,
+ null,
+ false),
+
+-- ── RECOVERY SPECIFIC ─────────────────────────────────────────
+('Pelvic Floor Activation',
+ 'Reconnects the deep pelvic floor muscles — vital for postnatal recovery and core health.',
+ ARRAY['Lie on back, knees bent, feet flat','Take a natural breath','On exhale, gently draw up and in — as if stopping the flow of urine','Hold for 5 seconds, fully release for 5 seconds','Do not hold breath or squeeze glutes','Repeat 10 times'],
+ ARRAY['pelvic_floor','transverse_abdominis'],
+ 'core', 'gentle', 'reps', 10,
+ null,
+ false),
+
+('Thoracic Rotation in Sitting',
+ 'Restores mid-back rotation that is often lost after pregnancy, injury, or prolonged sitting.',
+ ARRAY['Sit tall on a chair or mat','Cross arms over chest or place hands behind head','Inhale to grow tall','Exhale, rotate right from your mid-back only — hips stay forward','Return to centre, switch sides','Move slowly and with intention'],
+ ARRAY['thoracic_rotators','obliques','multifidus'],
+ 'spine', 'gentle', 'reps', 10,
+ null,
+ false),
+
+('Wall Angels',
+ 'Trains scapular upward rotation and thoracic extension against gravity — key for posture.',
+ ARRAY['Stand with back flat against wall, feet a few inches out','Press lower back, upper back, and head into wall','Raise arms to a W shape — elbows and wrists touching wall','Slowly slide arms up toward a Y shape, keeping contact with wall','Lower back to W with control — this is one rep'],
+ ARRAY['lower_trapezius','serratus_anterior','rhomboids','thoracic_extensors'],
+ 'shoulders', 'moderate', 'reps', 10,
+ null,
+ true);
+
+
+-- ═══════════════════════════════════════════════════════════════
+--  Session Plans
+-- ═══════════════════════════════════════════════════════════════
+
+insert into public.session_plans
+  (name, description, category, difficulty, duration_minutes, goals, focus_areas, is_pro, thumbnail_emoji, thumbnail_color)
+values
+('Spinal Mobility & Deep Core',
+ 'Gentle spinal articulation combined with deep core activation. Perfect for recovery days or returning to movement after a break.',
+ 'spine', 'moderate', 28,
+ ARRAY['recovery','alignment'],
+ ARRAY['lower_back','core_pelvic'],
+ false, '🌿', 'from-sage-dark to-sage'),
+
+('Shoulder & Neck Release',
+ 'A targeted flow for the upper body. Releases neck tension, opens the chest, and resets rounded-shoulder posture.',
+ 'shoulders', 'gentle', 22,
+ ARRAY['recovery','alignment'],
+ ARRAY['neck_shoulders'],
+ false, '🧘‍♀️', 'from-rose to-rose-dark'),
+
+('Core Activation',
+ 'Progressive deep core work that builds a strong foundation without stressing the spine.',
+ 'core', 'moderate', 25,
+ ARRAY['strength','recovery'],
+ ARRAY['core_pelvic'],
+ false, '💪', 'from-green-600 to-green-800'),
+
+('Evening Wind-Down',
+ 'A slow, restorative sequence to decompress the spine and calm the nervous system before sleep.',
+ 'cool_down', 'gentle', 18,
+ ARRAY['flexibility','recovery'],
+ ARRAY['lower_back','hips'],
+ false, '🌙', 'from-purple-400 to-purple-700'),
+
+('Hip Flexor & Lower Back Flow',
+ 'Targets the most common tension areas from sitting and daily life. Great for lower back pain relief.',
+ 'hips', 'gentle', 20,
+ ARRAY['recovery','flexibility'],
+ ARRAY['lower_back','hips'],
+ false, '🦋', 'from-amber-500 to-amber-700'),
+
+('Full Body Pilates — Moderate',
+ 'A complete full-body session using classic Pilates repertoire. Builds strength, improves alignment, and leaves you feeling reset.',
+ 'full_body', 'moderate', 35,
+ ARRAY['strength','alignment','flexibility'],
+ ARRAY['core_pelvic','lower_back','neck_shoulders'],
+ true, '⭐', 'from-sage to-sage-dark'),
+
+('Postnatal Recovery — Week 1',
+ 'Gentle reconnection for the postnatal body. Focus on breath, pelvic floor, and foundational core without strain.',
+ 'core', 'gentle', 20,
+ ARRAY['recovery'],
+ ARRAY['core_pelvic','lower_back'],
+ true, '🌸', 'from-rose-light to-rose');
