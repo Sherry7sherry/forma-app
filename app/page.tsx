@@ -30,7 +30,7 @@ export default function LandingPage() {
         </div>
         <h1 className="font-serif text-4xl sm:text-5xl font-medium text-charcoal
                        leading-tight mb-5">
-          Feel your progress<br/>
+          Feel your progress{' '}<br/>
           <span className="text-sage">in every movement.</span>
         </h1>
         <p className="text-charcoal-mid text-lg leading-relaxed mb-8 max-w-md mx-auto">
