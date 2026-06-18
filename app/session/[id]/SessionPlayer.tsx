@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import { formatDuration } from '@/lib/utils'
 import { createVoiceCoach, type VoiceCue } from '@/lib/voiceCoach'
+import { FLOOR_EXERCISE_NAMES, getExerciseTrackingProfile } from '@/lib/exerciseTracking'
+import { hasTrackingCoverage, isWithinTrackingGrace, normalizedPoseDistance } from '@/lib/poseTracking'
 import { UpgradeButton } from '@/components/billing/BillingButton'
 import type { SessionPlan } from '@/types'
 
@@ -48,73 +50,9 @@ const CALIB_HOLD_SECONDS = 3
 // Free sessions skip straight to `exercising` (no camera to calibrate).
 type ActiveStage = 'calibrating' | 'exercising'
 
-// ── Auto rep-counting tuning (Pro · AI camera) ─────────────────────
-// Generic oscillation detector: each exercise gets a "neutral" baseline pose
-// captured from the first confident frame. A rep is counted only after the
-// body clearly moves away from that baseline (the "engaged" phase) and then
-// clearly returns toward it (the "return" phase) — i.e. a full phase cycle,
-// not just any movement. A cooldown prevents a single motion from being
-// counted twice. This mirrors the Cow → Cat → return pattern for any
-// rep-based exercise without needing exercise-specific phase definitions.
-const REP_ENGAGE_THRESHOLD = 0.06   // normalized pose distance to register "moved away from neutral"
-const REP_RETURN_THRESHOLD = 0.03   // normalized pose distance to register "back near neutral" (= +1 rep)
-const FLOOR_REP_ENGAGE_THRESHOLD = 0.03
-const FLOOR_REP_RETURN_THRESHOLD = 0.018
 const REP_COOLDOWN_MS      = 700    // minimum ms between two counted reps — prevents double-counting
-const REP_TRACK_LANDMARKS  = [11,12,13,14,15,16,23,24,25,26,27,28] // shoulders/elbows/wrists/hips/knees/ankles
-const FLOOR_REP_TRACK_LANDMARKS = [0,11,12,15,16,23,24,25,26,27,28] // floor side-view: head/torso/knees, distal points optional
-const LOW_CONFIDENCE_THRESHOLD = 0.55  // bodyConfidence below this, even in "full-body" framing, is too shaky to trust
-const FLOOR_LOW_CONFIDENCE_THRESHOLD = 0.32
 const MOVEMENT_TIMEOUT_MS  = 12_000    // how long to wait at baseline before nudging "movement not detected yet"
 const REP_COUNTED_DISPLAY_MS = 1100    // how long the "Rep counted" state/flash lingers before reverting
-
-/** Average normalized distance between two landmark sets — the "how different is this pose from baseline" signal that drives rep detection. */
-function poseDistance(a: any[] | null | undefined, b: any[] | null | undefined, indices = REP_TRACK_LANDMARKS): number {
-  if (!a || !b) return 0
-  let sum = 0, n = 0
-  for (const i of indices) {
-    if (a[i]?.visibility > 0.5 && b[i]?.visibility > 0.5) {
-      sum += Math.hypot(a[i].x - b[i].x, a[i].y - b[i].y)
-      n++
-    }
-  }
-  return n > 0 ? sum / n : 0
-}
-
-function repLandmarksFor(exerciseName?: string, floor = false) {
-  switch (exerciseName) {
-    case 'Cat-Cow Stretch':
-      // Wrists/ankles are often hidden in a side-view kneeling pose; the spinal
-      // cycle shows up most reliably through head, shoulders, hips and knees.
-      return [0, 11, 12, 23, 24, 25, 26]
-    case 'Swan Prep':
-    case 'Pelvic Tilts':
-    case 'Glute Bridge':
-    case "Child's Pose Hold":
-      return [0, 11, 12, 23, 24, 25, 26, 27, 28]
-    case 'Clamshell':
-      return [23, 24, 25, 26, 27, 28]
-    default:
-      return floor ? FLOOR_REP_TRACK_LANDMARKS : REP_TRACK_LANDMARKS
-  }
-}
-
-function repThresholdsFor(exerciseName?: string, floor = false) {
-  if (exerciseName === 'Cat-Cow Stretch' || exerciseName === 'Pelvic Tilts') {
-    return { engage: 0.024, return: 0.014 }
-  }
-  if (floor) {
-    return { engage: FLOOR_REP_ENGAGE_THRESHOLD, return: FLOOR_REP_RETURN_THRESHOLD }
-  }
-  return { engage: REP_ENGAGE_THRESHOLD, return: REP_RETURN_THRESHOLD }
-}
-
-function hasEnoughVisibleLandmarks(lm: any[], indices: number[], floor = false) {
-  const minVisibility = floor ? 0.35 : 0.5
-  const visible = indices.filter(i => (lm[i]?.visibility ?? 0) >= minVisibility).length
-  const required = floor ? Math.min(5, indices.length) : indices.length
-  return visible >= required
-}
 
 // ── AI rep-counting state machine ──────────────────────────────────
 // Treats rep counting as explicit states (not a silent threshold check) so
@@ -257,12 +195,6 @@ const EXERCISE_CAMERA_GUIDES: Record<string, { position: string; distance: strin
  * These need a landscape (16:9) camera view so the full body width stays in
  * frame — portrait (3:4) would crop the feet or head.
  */
-const FLOOR_EXERCISES = new Set<string>([
-  'Cat-Cow Stretch', 'Plank Hold', "Child's Pose Hold", 'Glute Bridge',
-  'Pelvic Tilts', 'Swan Prep', 'Hundred', 'Single Leg Stretch', 'Clamshell',
-  'Diaphragmatic Breathing', 'Pelvic Floor Activation',
-])
-
 const EXERCISE_CUES: Record<string, { start: string; watch: string; avoid: string }> = {
   'Pelvic Tilts':           { start: 'Lie on back, knees bent, feet flat', watch: 'Lower back presses into mat — small movement', avoid: 'Don\'t move upper body or hold breath' },
   'Cat-Cow Stretch':        { start: 'Hands and knees, wrists under shoulders', watch: 'Vertebra by vertebra — slow', avoid: 'Don\'t rush or only move lower back' },
@@ -283,8 +215,6 @@ const DEFAULT_CUE = { start: 'Set up in your starting position', watch: 'Move sl
 // pose tracking to reliably detect a rep cycle (e.g. small internal
 // contractions, breath-driven movement). AI form feedback still runs for
 // these — only auto rep-counting is held back until it can be done well.
-const AI_REP_UNSUPPORTED = new Set<string>(['Pelvic Floor Activation', 'Diaphragmatic Breathing'])
-
 export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, sessionsThisWeek, partialSession }: Props) {
   const router   = useRouter()
   const supabase = createClient()
@@ -330,10 +260,20 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const [framingDetail, setFramingDetail] = useState<FramingDetail>(null)
   const [movementStale, setMovementStale] = useState(false)
   const [repFlash, setRepFlash]           = useState(false)  // brief "Rep counted" toast
+  const [poseDebugEnabled, setPoseDebugEnabled] = useState(false)
+  const [repDiagnostics, setRepDiagnostics] = useState({
+    usable: false,
+    visible: 0,
+    required: 0,
+    confidence: 0,
+    delta: 0,
+  })
+  const poseDebugRef = useRef(false)
   const aiRepPhaseRef    = useRef<AiRepPhase>('waiting_for_full_body')  // mirrors aiRepPhase — the live cycle tracker
   const framingDetailRef = useRef<FramingDetail>(null)
   const repBaselineRef   = useRef<any[] | null>(null)        // "neutral" pose snapshot for this exercise
   const repCooldownRef   = useRef(0)
+  const lastConfidentAtRef = useRef<number | null>(null)
   const hasTrackedRef    = useRef(false)                     // ever achieved confident framing this exercise?
   const engagedSinceRef  = useRef<number | null>(null)       // when we entered waiting_for_engaged_phase (for "movement not detected yet")
   const repFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -366,10 +306,14 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const isHold      = exercise?.duration_type === 'hold'
   const targetReps  = exercises[currentEx]?.reps_override ?? exercise?.default_reps ?? 10
   const isComplete  = isHold ? holdElapsed >= targetReps : repCount >= targetReps
-  const aiRepSupported = !exercise || !AI_REP_UNSUPPORTED.has(exercise.name)
+  const isFloorExercise = !!(exercise && FLOOR_EXERCISE_NAMES.has(exercise.name))
+  const trackingProfile = useMemo(
+    () => getExerciseTrackingProfile(exercise?.name, isFloorExercise, exercise?.duration_type),
+    [exercise?.name, exercise?.duration_type, isFloorExercise],
+  )
+  const aiRepSupported = trackingProfile.mode === 'auto'
   // Exercise-specific guide overrides the category default for floor exercises.
   const guide        = (exercise && EXERCISE_CAMERA_GUIDES[exercise.name]) ?? CAMERA_GUIDES[plan.category] ?? CAMERA_GUIDES.full_body
-  const isFloorExercise = !!(exercise && FLOOR_EXERCISES.has(exercise.name))
   const cue         = exercise ? (EXERCISE_CUES[exercise.name] ?? DEFAULT_CUE) : DEFAULT_CUE
   const sessionsLeft = Math.max(0, FREE_SESSION_LIMIT - sessionsThisWeek)
 
@@ -387,6 +331,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   useEffect(() => {
     repBaselineRef.current = null
     repCooldownRef.current = 0
+    lastConfidentAtRef.current = null
     hasTrackedRef.current = false
     engagedSinceRef.current = null
     framingDetailRef.current = null
@@ -402,15 +347,20 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     if (movementStaleTimerRef.current) clearTimeout(movementStaleTimerRef.current)
     voiceCoachRef.current.reset()
 
-    const initialPhase: AiRepPhase = (exercise && AI_REP_UNSUPPORTED.has(exercise.name))
+    const initialPhase: AiRepPhase = trackingProfile.mode === 'manual'
       ? 'unsupported_exercise'
       : 'waiting_for_full_body'
     aiRepPhaseRef.current = initialPhase
     setAiRepPhase(initialPhase)
-  }, [currentEx, exercise])
+  }, [currentEx, exercise, trackingProfile.mode])
 
   // Keep the voice-enabled ref fresh (prop is fixed per session, but this keeps the pattern consistent and SSR-safe)
   useEffect(() => { voiceEnabledRef.current = voiceCoachingEnabled }, [voiceCoachingEnabled])
+  useEffect(() => {
+    const enabled = new URLSearchParams(window.location.search).get('poseDebug') === '1'
+    poseDebugRef.current = enabled
+    setPoseDebugEnabled(enabled)
+  }, [])
 
   // Stop any speech in flight if the user pauses or leaves the active phase
   useEffect(() => {
@@ -863,22 +813,39 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   function processAutoRep(result: { framingStatus: string; landmarks: any[]; bodyConfidence?: number }) {
     const lm = result.landmarks ?? []
     const confidence = result.bodyConfidence ?? 0
-    const trackLandmarks = repLandmarksFor(exercise?.name, isFloorExercise)
-    const thresholds = repThresholdsFor(exercise?.name, isFloorExercise)
-    const trackedVisible = hasEnoughVisibleLandmarks(lm, trackLandmarks, isFloorExercise)
-    const confidenceThreshold = isFloorExercise ? FLOOR_LOW_CONFIDENCE_THRESHOLD : LOW_CONFIDENCE_THRESHOLD
-    const confident = result.framingStatus === 'full-body' && lm.length >= 29 && confidence >= confidenceThreshold && trackedVisible
+    const trackedVisible = hasTrackingCoverage(lm, trackingProfile.landmarks, trackingProfile)
+    const visibleCount = trackingProfile.landmarks.filter(
+      index => (lm[index]?.visibility ?? 0) >= trackingProfile.minVisibility,
+    ).length
+    const requiredCount = Math.min(
+      trackingProfile.landmarks.length,
+      Math.max(
+        trackingProfile.minVisibleLandmarks,
+        Math.ceil(trackingProfile.landmarks.length * trackingProfile.minVisibleRatio),
+      ),
+    )
+    const confident = result.framingStatus === 'full-body'
+      && lm.length >= 29
+      && confidence >= trackingProfile.confidenceThreshold
+      && trackedVisible
     const now = Date.now()
 
     if (!confident) {
+      if (poseDebugRef.current) {
+        setRepDiagnostics({ usable: false, visible: visibleCount, required: requiredCount, confidence, delta: 0 })
+      }
       // Classify *why* we can't track confidently — drives both the chip copy and the voice cue.
       let detail: FramingDetail = 'low-confidence'
       if (result.framingStatus === 'no-body' || lm.length < 29) detail = 'no-body'
       else if (result.framingStatus === 'upper-body') detail = 'upper-body'
 
+      if (isWithinTrackingGrace(lastConfidentAtRef.current, now, trackingProfile.trackingGraceMs)) return
+
+      const previousDetail = framingDetailRef.current
       framingDetailRef.current = detail
       setFramingDetail(detail)
       repBaselineRef.current = null
+      lastConfidentAtRef.current = null
       engagedSinceRef.current = null
       if (movementStale) setMovementStale(false)
       if (movementStaleTimerRef.current) { clearTimeout(movementStaleTimerRef.current); movementStaleTimerRef.current = null }
@@ -886,7 +853,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       // Once we've tracked confidently this exercise, losing it is "tracking lost"
       // rather than "never found you" — the copy and voice differ accordingly.
       const nextPhase: AiRepPhase = hasTrackedRef.current ? 'tracking_lost' : 'waiting_for_full_body'
-      if (aiRepPhaseRef.current !== nextPhase || framingDetailRef.current !== detail) {
+      if (aiRepPhaseRef.current !== nextPhase || previousDetail !== detail) {
         setAiPhase(nextPhase, detail, false)
       }
       return
@@ -894,6 +861,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 
     // Confident frame — clear any "can't see you" framing detail.
     hasTrackedRef.current = true
+    lastConfidentAtRef.current = now
     if (framingDetailRef.current !== null) {
       framingDetailRef.current = null
       setFramingDetail(null)
@@ -915,10 +883,18 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       if (movementStale) setMovementStale(false)
     }
 
-    const delta = poseDistance(lm, repBaselineRef.current, trackLandmarks)
+    const delta = normalizedPoseDistance(
+      lm,
+      repBaselineRef.current,
+      trackingProfile.landmarks,
+      trackingProfile.minVisibility,
+    )
+    if (poseDebugRef.current) {
+      setRepDiagnostics({ usable: true, visible: visibleCount, required: requiredCount, confidence, delta })
+    }
 
     if (aiRepPhaseRef.current === 'waiting_for_engaged_phase') {
-      if (delta > thresholds.engage) {
+      if (delta > trackingProfile.engageThreshold) {
         if (movementStale) setMovementStale(false)
         if (movementStaleTimerRef.current) { clearTimeout(movementStaleTimerRef.current); movementStaleTimerRef.current = null }
         setAiPhase('waiting_for_return_phase', null, false)
@@ -932,7 +908,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     }
 
     if (aiRepPhaseRef.current === 'waiting_for_return_phase') {
-      if (delta < thresholds.return && now - repCooldownRef.current > REP_COOLDOWN_MS) {
+      if (delta < trackingProfile.returnThreshold && now - repCooldownRef.current > REP_COOLDOWN_MS) {
         repCooldownRef.current = now
         repBaselineRef.current = lm   // re-anchor neutral to the current "returned" pose (corrects for drift)
         setRepCount(r => (r < targetRepsRef.current ? r + 1 : r))
@@ -974,7 +950,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   // form score updates, etc.) can never trigger a camera re-init/flicker.
   // `isPro` is a prop fixed for the lifetime of a session, so closing over it
   // here is safe — it's listed as a dep purely for clarity/lint correctness.
-  const handlePoseResult = useCallback((result: { formScore: number | null; framingStatus: string; landmarks: any[]; bodyConfidence?: number }) => {
+  const handlePoseResult = useCallback((result: {
+    formScore: number | null
+    framingStatus: string
+    landmarks: any[]
+    bodyConfidence?: number
+    diagnostics?: { orientation: 'portrait' | 'landscape' }
+  }) => {
     // Only aggregate real scores. null = "not scored for this view" (e.g. mat
     // poses) — it must not drag the session average down toward zero.
     if (result.formScore !== null && result.formScore > 0) {
@@ -984,8 +966,12 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // full body is confidently in frame — that's what drives the auto-start
     // countdown. We don't count reps until the exercise has actually started.
     if (isPro && activeStageRef.current === 'calibrating') {
-      const readyThreshold = isFloorExercise ? FLOOR_LOW_CONFIDENCE_THRESHOLD : LOW_CONFIDENCE_THRESHOLD
-      const ready = result.framingStatus === 'full-body' && (result.bodyConfidence ?? 0) >= readyThreshold
+      const orientationReady = trackingProfile.cameraOrientation === 'either'
+        || result.diagnostics?.orientation === trackingProfile.cameraOrientation
+      const ready = orientationReady
+        && result.framingStatus === 'full-body'
+        && (result.bodyConfidence ?? 0) >= trackingProfile.confidenceThreshold
+        && hasTrackingCoverage(result.landmarks, trackingProfile.landmarks, trackingProfile)
       setCalibReady(prev => (prev === ready ? prev : ready))
       return
     }
@@ -996,7 +982,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     if (isPro && !isHoldRef.current && aiRepSupportedRef.current && activeStageRef.current === 'exercising') {
       processAutoRepRef.current(result)
     }
-  }, [isPro, isFloorExercise])
+  }, [isPro, trackingProfile])
 
   const avgScore = calcAvgScore()
   // Single source of truth for the AI rep-counting chip/message/voice — keeps
@@ -1499,7 +1485,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   if (isPro) {
     const calibrating = activeStage === 'calibrating'
     return (
-      <div className="fixed inset-0 bg-black overflow-hidden">
+      <div className="fixed inset-0 h-[100dvh] w-screen bg-black overflow-hidden">
         {/* Full-bleed camera — the primary product surface */}
         <PoseCamera
           onPoseResult={handlePoseResult}
@@ -1507,9 +1493,21 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           exerciseName={exercise?.name}
           isFloorExercise={isFloorExercise}
           formScoreSupported={!isFloorExercise}
+          cameraOrientation={trackingProfile.cameraOrientation}
+          trackingLandmarks={trackingProfile.landmarks}
+          trackingMinVisibility={trackingProfile.minVisibility}
           fill
           overlayMode={calibrating ? 'calibration' : 'minimal'}
         />
+
+        {poseDebugEnabled && (
+          <div className="absolute left-3 top-28 z-50 rounded-md bg-black/75 px-3 py-2 font-mono text-[10px] leading-relaxed text-white/80">
+            <div>{aiRepPhase}</div>
+            <div>{repDiagnostics.usable ? 'usable' : 'blocked'} · points {repDiagnostics.visible}/{repDiagnostics.required}</div>
+            <div>conf {repDiagnostics.confidence.toFixed(2)} · delta {repDiagnostics.delta.toFixed(3)}</div>
+            <div>engage {trackingProfile.engageThreshold.toFixed(3)} · return {trackingProfile.returnThreshold.toFixed(3)}</div>
+          </div>
+        )}
 
         {/* Brief exercise-name flash on auto-start */}
         {showNameOverlay && (
@@ -1524,7 +1522,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         )}
 
         {/* Top-center: exercise name + progress (timer appears once live) */}
-        <div className="absolute top-12 inset-x-0 flex justify-center z-30 px-24 pointer-events-none">
+        <div className="absolute top-[max(3rem,env(safe-area-inset-top))] inset-x-0 flex justify-center z-30 px-24 pointer-events-none">
           <div className="bg-black/45 backdrop-blur-sm rounded-2xl px-4 py-1.5 text-center max-w-full">
             <p className="font-serif text-sm text-white leading-tight truncate">{exercise?.name}</p>
             <p className="text-white/55 text-[10px] tabular-nums">
@@ -1534,7 +1532,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         </div>
 
         {/* Bottom chrome — floats over the camera via a gradient, no hard panel */}
-        <div className="absolute bottom-0 inset-x-0 z-30 px-5 pb-8 pt-20
+        <div className="absolute bottom-0 inset-x-0 z-30 px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-20
                         bg-gradient-to-t from-black/85 via-black/45 to-transparent">
           {calibrating ? (
             <div className="flex flex-col items-center gap-4">
@@ -1683,6 +1681,9 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
               exerciseName={exercise?.name}
               isFloorExercise={isFloorExercise}
               formScoreSupported={!isFloorExercise}
+              cameraOrientation={trackingProfile.cameraOrientation}
+              trackingLandmarks={trackingProfile.landmarks}
+              trackingMinVisibility={trackingProfile.minVisibility}
             />
           : <PlaceholderCamera exercise={exercise} />
         }
