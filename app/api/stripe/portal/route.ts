@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
+import { appEnv } from '@/lib/env'
 
 // POST only — opening a billing-portal session is a side effect that should
 // never be triggered by link prefetch. Submitted from a <form method="POST">.
 export async function POST(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(new URL('/login', request.url), { status: 303 })
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL('/profile', request.url), { status: 303 })
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!.replace(/\/$/, '')
+  const appUrl = appEnv.appUrl()
 
   const session = await stripe.billingPortal.sessions.create({
     customer: profile.stripe_customer_id,

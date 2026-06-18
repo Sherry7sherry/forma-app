@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import SessionsClient from './SessionsClient'
 
 export default async function SessionsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: plans }, { data: profile }] = await Promise.all([

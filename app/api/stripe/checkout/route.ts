@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stripe, PLANS } from '@/lib/stripe'
+import { appEnv } from '@/lib/env'
 
 // POST only — this route has side effects (creates a Stripe customer + checkout
 // session). A GET can be triggered by browser/crawler link prefetch and spawn
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
     return NextResponse.redirect(new URL('/profile', request.url), { status: 303 })
   }
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(new URL('/login', request.url), { status: 303 })
 
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     .single()
 
   // Always use the canonical app URL — never a preview URL
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!.replace(/\/$/, '')
+  const appUrl = appEnv.appUrl()
 
   // Get or create Stripe customer
   let customerId = profile?.stripe_customer_id
@@ -34,9 +35,12 @@ export async function POST(request: Request) {
       metadata: { supabase_user_id: user.id },
     })
     customerId = customer.id
-    await supabase.from('user_profiles')
+    const { error: customerUpdateError } = await supabase.from('user_profiles')
       .update({ stripe_customer_id: customerId })
       .eq('id', user.id)
+    if (customerUpdateError) {
+      return NextResponse.json({ error: 'Unable to prepare billing profile.' }, { status: 500 })
+    }
   }
 
   const priceId = plan === 'monthly'

@@ -4,9 +4,10 @@ import DisclaimerGateForm from './DisclaimerGateForm'
 export default async function DisclaimerPage({
   searchParams,
 }: {
-  searchParams: { next?: string; review?: string }
+  searchParams: Promise<{ next?: string; review?: string }>
 }) {
-  const supabase = createClient()
+  const resolvedSearchParams = await searchParams
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: profile }, { data: onboarding }] = await Promise.all([
@@ -18,8 +19,8 @@ export default async function DisclaimerPage({
     onboarding?.goals?.includes('recovery') || onboarding?.focus_areas?.includes('lower_back')
   )
 
-  const reviewMode = searchParams?.review === '1'
-  const next = searchParams?.next || (profile?.onboarding_completed ? '/home' : '/onboarding')
+  const reviewMode = resolvedSearchParams?.review === '1'
+  const next = resolvedSearchParams?.next || (profile?.onboarding_completed ? '/home' : '/onboarding')
 
   return (
     <DisclaimerGateForm

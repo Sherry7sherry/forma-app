@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
+import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import { formatDuration } from '@/lib/utils'
 import { createVoiceCoach, type VoiceCue } from '@/lib/voiceCoach'
 import { UpgradeButton } from '@/components/billing/BillingButton'
@@ -310,6 +311,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const completedExRef = useRef<number[]>(initialCompleted)
   const [formScores, setFormScores]       = useState<number[]>([])
   const [saving, setSaving]               = useState(false)
+  const [saveError, setSaveError]         = useState<string | null>(null)
   const [showNameOverlay, setShowNameOverlay] = useState(false) // brief name shown when auto-starting
 
   // ── Camera-first calibration (Pro AI camera) ──────────────────
@@ -351,8 +353,14 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const isHoldRef          = useRef(false)              // mirrors isHold — read inside the rep-detector callback
   const targetRepsRef      = useRef(10)                 // mirrors targetReps — read inside the rep-detector callback
   const aiRepSupportedRef  = useRef(true)               // mirrors aiRepSupported — read inside the rep-detector callback
+  const startExercisingRef = useRef<() => void>(() => {})
+  const advanceToNextRef   = useRef<() => void>(() => {})
+  const beginExerciseRef   = useRef<() => void>(() => {})
+  const processAutoRepRef  = useRef<(result: { framingStatus: string; landmarks: any[]; bodyConfidence?: number }) => void>(() => {})
+  const exercisesRef       = useRef<any[]>([])
 
   const exercises   = plan.exercises ?? []
+  exercisesRef.current = exercises
   const exercise    = exercises[currentEx]?.exercise
   const nextEx      = exercises[currentEx + 1]?.exercise
   const isHold      = exercise?.duration_type === 'hold'
@@ -399,7 +407,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       : 'waiting_for_full_body'
     aiRepPhaseRef.current = initialPhase
     setAiRepPhase(initialPhase)
-  }, [currentEx])
+  }, [currentEx, exercise])
 
   // Keep the voice-enabled ref fresh (prop is fixed per session, but this keeps the pattern consistent and SSR-safe)
   useEffect(() => { voiceEnabledRef.current = voiceCoachingEnabled }, [voiceCoachingEnabled])
@@ -453,7 +461,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         calibTimerRef.current = setInterval(() => {
           setCalibCountdown(c => {
             if (c === null) return null
-            if (c <= 1) { clear(); startExercising(); return null }
+            if (c <= 1) { clear(); startExercisingRef.current(); return null }
             return c - 1
           })
         }, 1000)
@@ -487,7 +495,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       // cue a few seconds later carries the rep/hold target). Per-exercise key so
       // each transition gets its own cooldown.
       const upcomingIdx = currentExRef.current + 1
-      const upcoming    = exercises[upcomingIdx]?.exercise
+      const upcoming    = exercisesRef.current[upcomingIdx]?.exercise
       if (upcoming) {
         voiceCoachRef.current.speak(
           {
@@ -507,7 +515,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         setTransitionCount(c => {
           if (c <= 1) {
             if (transitionTimerRef.current) clearInterval(transitionTimerRef.current)
-            advanceToNext()
+            advanceToNextRef.current()
             return 0
           }
           return c - 1
@@ -535,7 +543,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         setIntroCount(c => {
           if (c <= 1) {
             if (introTimerRef.current) clearInterval(introTimerRef.current)
-            beginExercise()
+            beginExerciseRef.current()
             return 0
           }
           return c - 1
@@ -549,13 +557,14 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 
   // ── Session management ────────────────────────────────────────
   async function startSession() {
+    setSaveError(null)
     if (partialSession) {
       // Resume — record already exists
       setIntroPaused(false)
       setPhase('exercise-intro')
       return
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('session_records')
       .insert({
         user_id: userId,
@@ -565,7 +574,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         last_exercise_index: 0,
       })
       .select('id').single()
-    if (data) recordId.current = data.id
+    if (error || !data) {
+      setSaveError(error?.message ?? 'Unable to create a session record.')
+      return
+    }
+    recordId.current = data.id
     setIntroPaused(false)
     setIntroIsReview(false)
     setPhase('exercise-intro')
@@ -694,7 +707,9 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           last_exercise_index: nextIdx,       // "resume from" this index next time
           exercises_completed: doneCnt,        // ref has the fresh count (no +1 needed)
           duration_seconds: elapsed,
-        }).eq('id', recordId.current).then(() => {})
+        }).eq('id', recordId.current).then(result => {
+          if (result.error) setSaveError(result.error.message)
+        })
       }
     } else {
       endSession()
@@ -735,25 +750,33 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 
   async function saveAndExit() {
     clearAllTimers()
-    if (recordId.current) {
-      const avgScore  = calcAvgScore()
-      const doneCnt   = completedExRef.current.length
-      // last_exercise_index = "resume from this index": always equal to # of completed exercises,
-      // since exercises are done in order and we seed from this value on resume.
-      const resumeIdx = Math.min(doneCnt, exercises.length - 1)
-      await supabase.from('session_records').update({
-        completed_at: new Date().toISOString(),
-        duration_seconds: elapsed,
-        form_score: avgScore,
-        exercises_completed: doneCnt,
-        last_exercise_index: resumeIdx,
-        total_exercises: exercises.length,
-        is_partial: true,
-        skipped_exercises: skippedExercises.length,
-        ai_feedback: doneCnt > 0 ? generateFeedback(avgScore) : null,
-      }).eq('id', recordId.current)
+    setSaveError(null)
+    try {
+      if (recordId.current) {
+        const avgScore  = calcAvgScore()
+        const doneCnt   = completedExRef.current.length
+        // last_exercise_index = "resume from this index": always equal to # of completed exercises,
+        // since exercises are done in order and we seed from this value on resume.
+        const resumeIdx = Math.min(doneCnt, exercises.length - 1)
+        const result = await supabase.from('session_records').update({
+          completed_at: new Date().toISOString(),
+          duration_seconds: elapsed,
+          form_score: avgScore,
+          exercises_completed: doneCnt,
+          last_exercise_index: resumeIdx,
+          total_exercises: exercises.length,
+          is_partial: true,
+          skipped_exercises: skippedExercises.length,
+          ai_feedback: doneCnt > 0 ? generateFeedback(avgScore) : null,
+        }).eq('id', recordId.current)
+        assertSupabaseSuccess(result, 'Save session progress')
+      }
+      router.push('/home')
+    } catch (err) {
+      setPaused(true)
+      setPhase('exit-confirm')
+      setSaveError(err instanceof Error ? err.message : 'Unable to save session progress.')
     }
-    router.push('/home')
   }
 
   function discardAndExit() {
@@ -768,25 +791,34 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   async function endSession() {
     clearAllTimers()
     setSaving(true)
+    setSaveError(null)
     const avgScore   = calcAvgScore()
     // Use refs — endSession may be called from a stale closure inside advanceToNext
     const doneCnt    = completedExRef.current.length
     const allCompleted = doneCnt >= exercises.length - skippedExercises.length
-    if (recordId.current) {
-      await supabase.from('session_records').update({
-        completed_at: new Date().toISOString(),
-        duration_seconds: elapsed,
-        form_score: avgScore,
-        exercises_completed: doneCnt,
-        last_exercise_index: exercises.length - 1,
-        total_exercises: exercises.length,
-        is_partial: !allCompleted,
-        skipped_exercises: skippedExercises.length,
-        ai_feedback: generateFeedback(avgScore),
-      }).eq('id', recordId.current)
+    try {
+      if (recordId.current) {
+        const result = await supabase.from('session_records').update({
+          completed_at: new Date().toISOString(),
+          duration_seconds: elapsed,
+          form_score: avgScore,
+          exercises_completed: doneCnt,
+          last_exercise_index: exercises.length - 1,
+          total_exercises: exercises.length,
+          is_partial: !allCompleted,
+          skipped_exercises: skippedExercises.length,
+          ai_feedback: generateFeedback(avgScore),
+        }).eq('id', recordId.current)
+        assertSupabaseSuccess(result, 'Complete session')
+      }
+      setPhase('finished')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Unable to save completed session.')
+      setPaused(true)
+      setPhase('exit-confirm')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
-    setPhase('finished')
   }
 
   function clearAllTimers() {
@@ -918,6 +950,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     }
   }
 
+  startExercisingRef.current = startExercising
+  advanceToNextRef.current = advanceToNext
+  beginExerciseRef.current = beginExercise
+  processAutoRepRef.current = processAutoRep
+
   function calcAvgScore() {
     return formScores.length ? Math.round(formScores.reduce((a,b) => a+b,0)/formScores.length) : 0
   }
@@ -957,7 +994,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // timed, not counted) whose movement is visible enough for pose tracking to
     // reliably detect a rep cycle.
     if (isPro && !isHoldRef.current && aiRepSupportedRef.current && activeStageRef.current === 'exercising') {
-      processAutoRep(result)
+      processAutoRepRef.current(result)
     }
   }, [isPro, isFloorExercise])
 
@@ -1069,6 +1106,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
               {isResume ? `Resume from exercise ${partialSession!.lastExerciseIndex + 1}` : 'Begin session'}
             </button>
           )}
+          {saveError && (
+            <div className="rounded-xl border border-rose/25 bg-rose/10 px-4 py-3 text-sm text-rose-dark">
+              {saveError}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -1135,6 +1177,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           </div>
         </div>
         <div className="px-5 pb-10">
+          {saveError && (
+            <div className="mb-3 rounded-xl border border-rose/25 bg-rose/10 px-4 py-3 text-sm text-rose-light">
+              {saveError}
+            </div>
+          )}
           <button onClick={() => { voiceCoachRef.current.unlock(); startSession() }}
             className="w-full bg-sage text-white rounded-full py-4 font-semibold text-base
                        shadow-[0_4px_16px_rgba(122,158,142,.4)] active:scale-[.97] transition-transform">
@@ -1344,6 +1391,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           </p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
+          {saveError && (
+            <div className="rounded-xl border border-rose/25 bg-rose/10 px-4 py-3 text-sm text-rose-light">
+              {saveError}
+            </div>
+          )}
           {elapsed > 10 && completedExercises.length > 0 && (
             <button onClick={saveAndExit}
               className="w-full py-3.5 rounded-full bg-sage text-white text-sm font-semibold

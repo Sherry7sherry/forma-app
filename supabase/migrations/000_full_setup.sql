@@ -113,6 +113,12 @@ create table if not exists public.session_records (
   created_at            timestamptz not null default now()
 );
 
+create table if not exists public.stripe_events (
+  id           text primary key,
+  type         text not null,
+  processed_at timestamptz not null default now()
+);
+
 -- ───────────────────────────────────────────────────────────────
 --  COLUMN BACKFILL (for databases created from the older migrations)
 -- ───────────────────────────────────────────────────────────────
@@ -143,6 +149,7 @@ alter table public.session_records        enable row level security;
 alter table public.exercises              enable row level security;
 alter table public.session_plans          enable row level security;
 alter table public.session_plan_exercises enable row level security;
+alter table public.stripe_events          enable row level security;
 
 drop policy if exists "Users can view own profile"   on public.user_profiles;
 create policy "Users can view own profile"

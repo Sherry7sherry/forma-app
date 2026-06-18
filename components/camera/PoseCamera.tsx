@@ -580,7 +580,7 @@ export default function PoseCamera({
       setErrMsg(err?.message ?? 'Unknown error')
       setStatus('error')
     }
-  }, [stopCamera, handlePoseResults, loop, videoConstraints])
+  }, [stopCamera, handlePoseResults, loop, videoConstraints, isMobile])
 
   /**
    * Flip between the front and rear camera. Only the MediaStream is swapped —
