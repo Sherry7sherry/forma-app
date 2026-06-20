@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { appEnv } from '@/lib/env'
 
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/api/stripe/webhook']
 
@@ -12,12 +13,12 @@ const PUBLIC_PATHS = ['/', '/login', '/signup', '/api/stripe/webhook']
 const GATE_COOKIE = 'forma_gate'
 const GATE_COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    appEnv.supabaseUrl(),
+    appEnv.supabaseAnonKey(),
     {
       cookies: {
         getAll() { return request.cookies.getAll() },

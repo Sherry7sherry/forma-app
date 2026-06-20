@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import type { Goal, ExperienceLevel, FocusArea } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -50,6 +51,7 @@ function OnboardingForm() {
   const [level, setLevel]         = useState<ExperienceLevel | null>(null)
   const [focusAreas, setFocusAreas] = useState<FocusArea[]>([])
   const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState<string | null>(null)
 
   function toggleGoal(g: Goal) {
     setGoals(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
@@ -60,31 +62,40 @@ function OnboardingForm() {
 
   async function finish() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Please sign in again before finishing onboarding.')
 
-    await supabase.from('user_onboarding').upsert({
-      user_id:          user.id,
-      goals,
-      experience_level: level,
-      focus_areas:      focusAreas,
-      sessions_per_week: 3,
-    })
-    await supabase.from('user_profiles')
-      .update({ onboarding_completed: true })
-      .eq('id', user.id)
+      const onboardingResult = await supabase.from('user_onboarding').upsert({
+        user_id:          user.id,
+        goals,
+        experience_level: level,
+        focus_areas:      focusAreas,
+        sessions_per_week: 3,
+      })
+      assertSupabaseSuccess(onboardingResult, 'Save onboarding')
 
-    // If user came from Pro CTA, send straight to checkout. Checkout is a POST
-    // (side-effecting) route, so submit a form rather than navigating via GET.
-    if (isPro) {
-      const form = document.createElement('form')
-      form.method = 'POST'
-      form.action = '/api/stripe/checkout?plan=monthly'
-      document.body.appendChild(form)
-      form.submit()
-    } else {
-      router.push('/home')
-      router.refresh()
+      const profileResult = await supabase.from('user_profiles')
+        .update({ onboarding_completed: true })
+        .eq('id', user.id)
+      assertSupabaseSuccess(profileResult, 'Complete onboarding')
+
+      // If user came from Pro CTA, send straight to checkout. Checkout is a POST
+      // (side-effecting) route, so submit a form rather than navigating via GET.
+      if (isPro) {
+        const form = document.createElement('form')
+        form.method = 'POST'
+        form.action = '/api/stripe/checkout?plan=monthly'
+        document.body.appendChild(form)
+        form.submit()
+      } else {
+        router.push('/home')
+        router.refresh()
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to finish onboarding.')
+      setSaving(false)
     }
   }
 
@@ -193,6 +204,12 @@ function OnboardingForm() {
             ))}
           </div>
           <p className="text-xs text-muted mt-4">Not sure? Leave blank — we'll adapt over time.</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="fixed left-5 right-5 bottom-28 rounded-xl border border-rose/20 bg-rose/10 px-4 py-3 text-sm text-rose-dark">
+          {error}
         </div>
       )}
 

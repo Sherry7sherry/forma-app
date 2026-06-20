@@ -3,10 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 import { startOfWeekISO } from '@/lib/utils'
 import SessionPlayer from './SessionPlayer'
 
-interface Props { params: { id: string } }
+interface Props { params: Promise<{ id: string }> }
 
 export default async function SessionPage({ params }: Props) {
-  const supabase = createClient()
+  const { id } = await params
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
@@ -21,7 +22,7 @@ export default async function SessionPage({ params }: Props) {
         order_index, reps_override, rest_after_seconds, exercise_id,
         exercise:exercises(*)
       )
-    `).eq('id', params.id).single(),
+    `).eq('id', id).single(),
 
     supabase.from('user_profiles')
       .select('subscription_status, voice_coaching_enabled')
@@ -39,7 +40,7 @@ export default async function SessionPage({ params }: Props) {
     supabase.from('session_records')
       .select('id, last_exercise_index, exercises_completed, total_exercises, completed_at')
       .eq('user_id', user.id)
-      .eq('session_plan_id', params.id)
+      .eq('session_plan_id', id)
       .eq('is_partial', true)
       .order('completed_at', { ascending: false })
       .limit(1),

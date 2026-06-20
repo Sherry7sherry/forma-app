@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import type { CameraOrientation } from '@/lib/exerciseTracking'
+import { visibleLandmarkCount } from '@/lib/poseTracking'
 
 // Full MediaPipe Pose connection set — face, arms, hands, torso, legs and feet.
 // The MVP draws the complete skeleton (MediaPipe POSE_CONNECTIONS) which reads as
@@ -48,6 +50,18 @@ export interface PoseResult {
   landmarks: any[]
   framingStatus: FramingStatus
   bodyConfidence: number   // 0–1 avg visibility of key landmarks
+  diagnostics: PoseDiagnostics
+}
+
+export interface PoseDiagnostics {
+  sourceWidth: number
+  sourceHeight: number
+  detectionFps: number
+  visibleLandmarks: number
+  trackedLandmarks: number
+  bodyConfidence: number
+  deviceClass: 'phone' | 'tablet' | 'desktop'
+  orientation: 'portrait' | 'landscape'
 }
 
 interface Props {
@@ -77,6 +91,11 @@ interface Props {
   fill?: boolean
   /** Controls how much chrome is drawn over the video. Defaults to 'full'. */
   overlayMode?: OverlayMode
+  /** Preferred physical device orientation from the exercise tracking profile. */
+  cameraOrientation?: CameraOrientation
+  /** Profile landmarks used by the opt-in diagnostics panel. */
+  trackingLandmarks?: number[]
+  trackingMinVisibility?: number
 }
 
 function loadScript(src: string): Promise<void> {
@@ -347,27 +366,45 @@ const EXERCISE_FRAMING_TIPS: Record<string, { headline: string; tips: string[] }
 // a much smaller compute budget, especially after the camera was promoted to a
 // full-screen surface.
 const DESKTOP_DETECT_INTERVAL_MS = 130
+const TABLET_DETECT_INTERVAL_MS  = 180
 const MOBILE_DETECT_INTERVAL_MS  = 280
 const DESKTOP_DRAW_INTERVAL_MS   = 33
+const TABLET_DRAW_INTERVAL_MS    = 50
 const MOBILE_DRAW_INTERVAL_MS    = 66
 // How often (ms) to push new score / feedback / framing values into React state.
 // Keeps re-renders to ~3/sec instead of on every detection tick.
 const UI_UPDATE_INTERVAL_MS = 300
+const DEGRADED_FRAME_HOLD = 4
 
 export default function PoseCamera({
   onPoseResult, active = true, exerciseName,
   isFloorExercise = false, formScoreSupported = true,
   fill = false, overlayMode = 'full',
+  cameraOrientation = 'either', trackingLandmarks = [], trackingMinVisibility = 0.5,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef     = useRef<HTMLVideoElement>(null)
   const canvasRef    = useRef<HTMLCanvasElement>(null)
 
-  // Detect desktop (non-touch) so we can show the laptop-camera warning for
-  // floor exercises — built-in laptop cameras face forward and can't track a
-  // horizontal body on a mat.
-  const isDesktop = typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches
-  const isMobile  = !isDesktop
+  const getDeviceInfo = (): {
+    deviceClass: PoseDiagnostics['deviceClass']
+    orientation: PoseDiagnostics['orientation']
+    width: number
+    height: number
+  } => {
+    if (typeof window === 'undefined') {
+      return { deviceClass: 'phone' as const, orientation: 'portrait' as const, width: 0, height: 0 }
+    }
+    const width = window.innerWidth
+    const height = window.innerHeight
+    const touch = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches
+    const deviceClass = !touch ? 'desktop' : Math.min(width, height) >= 700 ? 'tablet' : 'phone'
+    return { deviceClass, orientation: width > height ? 'landscape' as const : 'portrait' as const, width, height }
+  }
+  const [deviceInfo, setDeviceInfo] = useState(getDeviceInfo)
+  const isDesktop = deviceInfo.deviceClass === 'desktop'
+  const isTablet = deviceInfo.deviceClass === 'tablet'
+  const isMobile = deviceInfo.deviceClass === 'phone'
 
   // Start with the front camera on every device. It is the most reliable default
   // for mobile browsers and lets the user see setup/tracking feedback while
@@ -383,6 +420,7 @@ export default function PoseCamera({
   const lastUiUpdateAt = useRef(0)
   const noBodyFrames  = useRef(0)
   const lastLandmarksRef = useRef<any[] | null>(null)
+  const detectionWindowRef = useRef({ startedAt: 0, count: 0, fps: 0 })
   // Front camera is mirrored (natural "selfie" view); rear camera is not.
   const mirroredRef   = useRef(initialFacing === 'user')
 
@@ -392,10 +430,18 @@ export default function PoseCamera({
   const activeRef       = useRef(active)
   const onPoseResultRef = useRef(onPoseResult)
   const formScoreSupportedRef = useRef(formScoreSupported)
+  const isFloorExerciseRef = useRef(isFloorExercise)
+  const trackingConfigRef = useRef({ landmarks: trackingLandmarks, minVisibility: trackingMinVisibility })
+  const deviceInfoRef = useRef(deviceInfo)
   const facingRef       = useRef<'user' | 'environment'>(initialFacing)
   useEffect(() => { activeRef.current = active }, [active])
   useEffect(() => { onPoseResultRef.current = onPoseResult }, [onPoseResult])
   useEffect(() => { formScoreSupportedRef.current = formScoreSupported }, [formScoreSupported])
+  useEffect(() => { isFloorExerciseRef.current = isFloorExercise }, [isFloorExercise])
+  useEffect(() => {
+    trackingConfigRef.current = { landmarks: trackingLandmarks, minVisibility: trackingMinVisibility }
+  }, [trackingLandmarks, trackingMinVisibility])
+  useEffect(() => { deviceInfoRef.current = deviceInfo }, [deviceInfo])
 
   const [status,        setStatus]        = useState<'loading' | 'ready' | 'error'>('loading')
   const [score,         setScore]         = useState<number | null>(null)
@@ -404,20 +450,50 @@ export default function PoseCamera({
   const [framingStatus, setFramingStatus] = useState<FramingStatus>('no-body')
   const [facing,        setFacing]        = useState<'user' | 'environment'>(initialFacing)
   const [switching,     setSwitching]     = useState(false)
+  const [sourceSize,    setSourceSize]    = useState({ width: 4, height: 3 })
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const [debugEnabled,  setDebugEnabled]  = useState(false)
+  const [diagnostics,   setDiagnostics]   = useState<PoseDiagnostics>({
+    sourceWidth: 0,
+    sourceHeight: 0,
+    detectionFps: 0,
+    visibleLandmarks: 0,
+    trackedLandmarks: trackingLandmarks.length,
+    bodyConfidence: 0,
+    deviceClass: deviceInfo.deviceClass,
+    orientation: deviceInfo.orientation,
+  })
 
-  /** Build getUserMedia video constraints for the requested camera. Desktop can
-   *  afford 1280x720 for floor work; mobile keeps a lower inference stream while
-   *  still rendering it full-screen, avoiding Safari/Chrome jank. */
-  const videoConstraints = useCallback((face: 'user' | 'environment'): MediaTrackConstraints => {
-    if (isFloorExercise) {
-      return isMobile
-        ? { facingMode: { ideal: face }, width: { ideal: 640 }, height: { ideal: 360 }, aspectRatio: { ideal: 16 / 9 } }
-        : { facingMode: { ideal: face }, width: { ideal: 1280 }, height: { ideal: 720 }, aspectRatio: { ideal: 16 / 9 } }
+  useEffect(() => {
+    const updateDeviceInfo = () => setDeviceInfo(getDeviceInfo())
+    updateDeviceInfo()
+    window.addEventListener('resize', updateDeviceInfo)
+    window.addEventListener('orientationchange', updateDeviceInfo)
+    setDebugEnabled(new URLSearchParams(window.location.search).get('poseDebug') === '1')
+    return () => {
+      window.removeEventListener('resize', updateDeviceInfo)
+      window.removeEventListener('orientationchange', updateDeviceInfo)
     }
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const update = () => setContainerSize({ width: container.clientWidth, height: container.clientHeight })
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  /** Request the camera's uncropped 4:3 sensor view. Device orientation changes
+   *  how that view is presented; a forced 16:9 stream can crop useful vertical
+   *  field of view on tablets without adding horizontal field of view. */
+  const videoConstraints = useCallback((face: 'user' | 'environment'): MediaTrackConstraints => {
     return isMobile
       ? { facingMode: { ideal: face }, width: { ideal: 640 }, height: { ideal: 480 } }
-      : { facingMode: { ideal: face }, width: { ideal: 960 }, height: { ideal: 720 } }
-  }, [isFloorExercise, isMobile])
+      : { facingMode: { ideal: face }, width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 } }
+  }, [isMobile])
 
   /** Draw only the pose overlay. The real video element is visible underneath.
    *  This is much cheaper on mobile than copying the video into canvas every
@@ -466,13 +542,24 @@ export default function PoseCamera({
     const lm = results?.poseLandmarks ?? null
     lastLandmarksRef.current = lm
 
-    const { status: framing, bodyConfidence } = classifyFraming(lm, isFloorExercise)
+    const { status: framing, bodyConfidence } = classifyFraming(lm, isFloorExerciseRef.current)
+    const trackingConfig = trackingConfigRef.current
+    const currentDeviceInfo = deviceInfoRef.current
+    const detectionNow = performance.now()
+    const detectionWindow = detectionWindowRef.current
+    if (!detectionWindow.startedAt) detectionWindow.startedAt = detectionNow
+    detectionWindow.count += 1
+    if (detectionNow - detectionWindow.startedAt >= 1_000) {
+      detectionWindow.fps = detectionWindow.count * 1_000 / (detectionNow - detectionWindow.startedAt)
+      detectionWindow.startedAt = detectionNow
+      detectionWindow.count = 0
+    }
 
     // Debounce degradation: only drop to a worse status after several
     // consecutive frames, so a single bad frame doesn't flicker the UI.
     if (framing === 'no-body' || framing === 'partial' || framing === 'upper-body') {
       noBodyFrames.current += 1
-      if (noBodyFrames.current <= 15) return
+      if (noBodyFrames.current <= DEGRADED_FRAME_HOLD) return
     } else {
       noBodyFrames.current = 0
     }
@@ -491,35 +578,65 @@ export default function PoseCamera({
       const analysis = formScoreSupportedRef.current ? analyseForm(lm) : null
       setScore(analysis ? analysis.formScore : null)
       setFeedback(analysis ? analysis.feedback : [])
+      const nextDiagnostics: PoseDiagnostics = {
+        sourceWidth: videoRef.current?.videoWidth ?? 0,
+        sourceHeight: videoRef.current?.videoHeight ?? 0,
+        detectionFps: detectionWindow.fps,
+        visibleLandmarks: visibleLandmarkCount(lm, trackingConfig.landmarks, trackingConfig.minVisibility),
+        trackedLandmarks: trackingConfig.landmarks.length,
+        bodyConfidence,
+        deviceClass: currentDeviceInfo.deviceClass,
+        orientation: currentDeviceInfo.orientation,
+      }
+      setDiagnostics(nextDiagnostics)
       onPoseResultRef.current?.({
         formScore: analysis ? analysis.formScore : null,
         feedback: analysis ? analysis.feedback : [],
         landmarks: lm, framingStatus: framing, bodyConfidence,
+        diagnostics: nextDiagnostics,
       })
     } else {
       setScore(null)
       setFeedback([])
-      onPoseResultRef.current?.({ formScore: null, feedback: [], landmarks: lm ?? [], framingStatus: framing, bodyConfidence })
+      const nextDiagnostics: PoseDiagnostics = {
+        sourceWidth: videoRef.current?.videoWidth ?? 0,
+        sourceHeight: videoRef.current?.videoHeight ?? 0,
+        detectionFps: detectionWindow.fps,
+        visibleLandmarks: visibleLandmarkCount(lm, trackingConfig.landmarks, trackingConfig.minVisibility),
+        trackedLandmarks: trackingConfig.landmarks.length,
+        bodyConfidence,
+        deviceClass: currentDeviceInfo.deviceClass,
+        orientation: currentDeviceInfo.orientation,
+      }
+      setDiagnostics(nextDiagnostics)
+      onPoseResultRef.current?.({
+        formScore: null, feedback: [], landmarks: lm ?? [], framingStatus: framing, bodyConfidence,
+        diagnostics: nextDiagnostics,
+      })
     }
-  }, [isFloorExercise])
+  }, [])
 
   /** Persistent render+detection loop. The browser schedules us every animation
    *  frame, but on mobile we intentionally draw/detect less often to keep the
    *  page responsive enough for real movement. */
   const loop = useCallback((ts: number) => {
     rafRef.current = requestAnimationFrame(loop)
-    const drawInterval = isMobile ? MOBILE_DRAW_INTERVAL_MS : DESKTOP_DRAW_INTERVAL_MS
+    const drawInterval = isMobile
+      ? MOBILE_DRAW_INTERVAL_MS
+      : isTablet ? TABLET_DRAW_INTERVAL_MS : DESKTOP_DRAW_INTERVAL_MS
     if (ts - lastDrawAt.current > drawInterval) {
       lastDrawAt.current = ts
       drawFrame()
     }
-    const detectInterval = isMobile ? MOBILE_DETECT_INTERVAL_MS : DESKTOP_DETECT_INTERVAL_MS
+    const detectInterval = isMobile
+      ? MOBILE_DETECT_INTERVAL_MS
+      : isTablet ? TABLET_DETECT_INTERVAL_MS : DESKTOP_DETECT_INTERVAL_MS
     if (activeRef.current && poseRef.current && videoRef.current
         && ts - lastDetectAt.current > detectInterval) {
       lastDetectAt.current = ts
       poseRef.current.send({ image: videoRef.current })
     }
-  }, [drawFrame, isMobile])
+  }, [drawFrame, isMobile, isTablet])
 
   const stopCamera = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -556,6 +673,7 @@ export default function PoseCamera({
       if (!video) throw new Error('Video element not ready')
       video.srcObject = stream
       await video.play()
+      setSourceSize({ width: video.videoWidth || 4, height: video.videoHeight || 3 })
 
       const cdnBase = await loadPoseFromCdn()
       const win = window as any
@@ -580,7 +698,7 @@ export default function PoseCamera({
       setErrMsg(err?.message ?? 'Unknown error')
       setStatus('error')
     }
-  }, [stopCamera, handlePoseResults, loop, videoConstraints])
+  }, [stopCamera, handlePoseResults, loop, videoConstraints, isMobile])
 
   /**
    * Flip between the front and rear camera. Only the MediaStream is swapped —
@@ -602,6 +720,7 @@ export default function PoseCamera({
       streamRef.current = stream
       const video = videoRef.current
       if (video) { video.srcObject = stream; await video.play() }
+      if (video) setSourceSize({ width: video.videoWidth || 4, height: video.videoHeight || 3 })
       facingRef.current = next
       mirroredRef.current = next === 'user'
       canvasSizeRef.current = { w: 0, h: 0 }   // force a re-measure for the new resolution
@@ -627,6 +746,15 @@ export default function PoseCamera({
   // Exercise-specific framing guidance takes priority over the generic status message.
   const exerciseGuidance = exerciseName ? EXERCISE_FRAMING_TIPS[exerciseName] : undefined
   const guidance = exerciseGuidance ?? FRAMING_GUIDANCE[framingStatus]
+  const adaptiveGuidanceTips = isTablet && !isFullBody
+    ? ['Try the rear camera for a wider field of view', ...guidance.tips]
+    : guidance.tips
+  const needsLandscape = cameraOrientation === 'landscape' && deviceInfo.orientation === 'portrait'
+  const sourceAspect = sourceSize.width / sourceSize.height
+  const containerAspect = containerSize.height > 0 ? containerSize.width / containerSize.height : sourceAspect
+  const frameStyle = sourceAspect >= containerAspect
+    ? { width: '100%', height: `${containerSize.width / sourceAspect}px` }
+    : { width: `${containerSize.height * sourceAspect}px`, height: '100%' }
 
   // Compact framing chip label/colour — the single "one status icon" the
   // camera-first minimal overlay keeps on screen.
@@ -644,16 +772,23 @@ export default function PoseCamera({
       className={`bg-[#1A1A1A] overflow-hidden ${fill ? 'absolute inset-0 w-full h-full' : 'relative w-full'}`}
       style={fill ? undefined : { aspectRatio: isFloorExercise ? '16 / 9' : '3 / 4' }}
     >
-      <video
-        ref={videoRef}
-        className={`absolute inset-0 w-full h-full object-contain ${facing === 'user' ? '-scale-x-100' : ''}`}
-        playsInline
-        muted
-        autoPlay
-      />
-      {/* object-contain keeps the full body visible without cropping — essential for
-          landscape floor exercises where a portrait crop would cut off feet or head. */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />
+      <div
+        className="absolute left-1/2 top-1/2 overflow-hidden"
+        style={{ ...frameStyle, transform: 'translate(-50%, -50%)' }}
+      >
+        <video
+          ref={videoRef}
+          className={`absolute inset-0 w-full h-full ${facing === 'user' ? '-scale-x-100' : ''}`}
+          playsInline
+          muted
+          autoPlay
+          onLoadedMetadata={event => setSourceSize({
+            width: event.currentTarget.videoWidth || 4,
+            height: event.currentTarget.videoHeight || 3,
+          })}
+        />
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+      </div>
 
       {/* Loading */}
       {status === 'loading' && (
@@ -699,6 +834,29 @@ export default function PoseCamera({
       {/* Ready */}
       {status === 'ready' && (
         <>
+          {needsLandscape && overlayMode === 'calibration' && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/65 px-8 text-center">
+              <div className="max-w-xs">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-2xl">
+                  ↻
+                </div>
+                <p className="text-lg font-semibold text-white">Rotate to landscape</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                  This movement needs the wider camera view. Keep the device sideways, then place your full body in frame.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {debugEnabled && (
+            <div className="absolute right-3 top-16 z-40 rounded-md bg-black/75 px-3 py-2 font-mono text-[10px] leading-relaxed text-white/80">
+              <div>{diagnostics.deviceClass} · {diagnostics.orientation}</div>
+              <div>{diagnostics.sourceWidth}×{diagnostics.sourceHeight} · {diagnostics.detectionFps.toFixed(1)} fps</div>
+              <div>points {diagnostics.visibleLandmarks}/{diagnostics.trackedLandmarks} · conf {diagnostics.bodyConfidence.toFixed(2)}</div>
+              <div>{framingStatus}</div>
+            </div>
+          )}
+
           {/* Camera flip — camera-first views only (calibration + minimal). */}
           {showSwitch && (
             <button onClick={switchCamera} disabled={switching} aria-label="Switch camera"
@@ -740,13 +898,13 @@ export default function PoseCamera({
                 )}
               </div>
 
-              {!isFullBody && (
+              {!isFullBody && !needsLandscape && (
                 <div role="status" aria-live="polite"
                   className="absolute inset-x-0 bottom-0 top-12 flex flex-col items-center justify-center
                                 z-10 bg-black/55 backdrop-blur-[2px] px-5 text-center">
                   <p className="text-white text-sm font-semibold mb-2.5">{guidance.headline}</p>
                   <div className="flex flex-col gap-1.5 w-full max-w-[240px]">
-                    {guidance.tips.map(tip => (
+                    {adaptiveGuidanceTips.map(tip => (
                       <div key={tip} className="bg-white/15 rounded-xl px-3 py-2 text-left">
                         <p className="text-white/90 text-xs">{tip}</p>
                       </div>
@@ -799,7 +957,7 @@ export default function PoseCamera({
                     {guidance.headline || 'Move until your full body is visible'}
                   </p>
                   <div className="flex flex-col gap-1.5 w-full max-w-[280px]">
-                    {guidance.tips.slice(0, 2).map(tip => (
+                    {adaptiveGuidanceTips.slice(0, 2).map(tip => (
                       <div key={tip} className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2">
                         <p className="text-white/90 text-xs">{tip}</p>
                       </div>
@@ -808,7 +966,7 @@ export default function PoseCamera({
                 </div>
               )}
 
-              {isFullBody && (
+              {isFullBody && !needsLandscape && (
                 <div className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-end z-10 px-5 pb-28 text-center">
                   <div className="flex items-center gap-2 bg-sage/85 rounded-full px-4 py-2">
                     <span className="text-white text-sm font-semibold">✓ You're all set — hold still</span>

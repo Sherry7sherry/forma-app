@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
+import { appEnv } from '@/lib/env'
+import { markStripeEventProcessing } from '@/lib/stripeWebhook'
 import type Stripe from 'stripe'
 
 export async function POST(request: Request) {
@@ -9,12 +11,16 @@ export async function POST(request: Request) {
 
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!)
+    event = stripe.webhooks.constructEvent(body, signature, appEnv.stripeWebhookSecret())
   } catch (err) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
   const supabase = createServiceClient()
+  const processing = await markStripeEventProcessing(supabase, event.id, event.type)
+  if (!processing.shouldProcess) {
+    return NextResponse.json({ received: true, duplicate: true })
+  }
 
   // Map a Stripe subscription status to our access tier.
   //   active / trialing            → pro (paying or in trial — keep access)
@@ -51,14 +57,16 @@ export async function POST(request: Request) {
       // Retrieve the subscription to get the end date
       if (session.subscription) {
         const sub = await stripe.subscriptions.retrieve(session.subscription as string)
-        await supabase.from('user_profiles').update({
+        const { error } = await supabase.from('user_profiles').update({
           subscription_status:   'pro',
           subscription_end_date: new Date(sub.current_period_end * 1000).toISOString(),
         }).eq('id', userId)
+        if (error) throw error
       } else {
-        await supabase.from('user_profiles').update({
+        const { error } = await supabase.from('user_profiles').update({
           subscription_status: 'pro',
         }).eq('id', userId)
+        if (error) throw error
       }
       break
     }
@@ -74,10 +82,11 @@ export async function POST(request: Request) {
 
       const endDate = new Date(sub.current_period_end * 1000).toISOString()
 
-      await supabase.from('user_profiles').update({
+      const { error } = await supabase.from('user_profiles').update({
         subscription_status:   tier,
         subscription_end_date: endDate,
       }).eq('id', userId)
+      if (error) throw error
       break
     }
 
@@ -86,10 +95,11 @@ export async function POST(request: Request) {
       const userId = sub.metadata?.supabase_user_id
       if (!userId) break
 
-      await supabase.from('user_profiles').update({
+      const { error } = await supabase.from('user_profiles').update({
         subscription_status:   'free',
         subscription_end_date: null,
       }).eq('id', userId)
+      if (error) throw error
       break
     }
   }

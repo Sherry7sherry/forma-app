@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { UpgradeButton } from '@/components/billing/BillingButton'
 
 export default async function HomePage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   const [{ data: profile }, { data: sessions }, { data: featuredSession }, { data: partialRecords }] = await Promise.all([
