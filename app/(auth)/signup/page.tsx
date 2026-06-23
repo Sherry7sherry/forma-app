@@ -3,7 +3,6 @@
 import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
   return (
@@ -41,6 +40,7 @@ function SignupForm() {
     setLoading(true)
     setError(null)
 
+    const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
     const { error } = await supabase.auth.signUp({
       email,
@@ -68,6 +68,7 @@ function SignupForm() {
     const redirectTo = isPro
       ? `${window.location.origin}/auth/callback?plan=pro`
       : `${window.location.origin}/auth/callback`
+    const { createClient } = await import('@/lib/supabase/client')
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
       provider: 'google',
