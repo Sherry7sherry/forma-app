@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getStripe, PLANS } from '@/lib/stripe'
+import { getStripe, getStripePriceId } from '@/lib/stripe'
 import { appEnv } from '@/lib/env'
 
 // POST only — this route has side effects (creates a Stripe customer + checkout
@@ -44,9 +44,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const priceId = plan === 'monthly'
-    ? PLANS.pro_monthly.priceId
-    : PLANS.pro_yearly.priceId
+  const priceId = getStripePriceId(plan)
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,

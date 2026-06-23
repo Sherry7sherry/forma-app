@@ -8,6 +8,12 @@ export function getStripe() {
   })
 }
 
+export function getStripePriceId(plan: 'monthly' | 'yearly') {
+  return plan === 'monthly'
+    ? appEnv.stripeMonthlyPriceId()
+    : appEnv.stripeYearlyPriceId()
+}
+
 export const PLANS = {
   free: {
     name: 'Free',
@@ -19,7 +25,6 @@ export const PLANS = {
   pro_monthly: {
     name: 'Pro Monthly',
     price: 1499, // cents
-    get priceId() { return appEnv.stripeMonthlyPriceId() },
     features: ['Unlimited sessions', 'Real-time AI form analysis', 'Full progress tracking', 'All session types'],
     sessionLimitWeekly: null,
     aiCamera: true,
@@ -27,7 +32,6 @@ export const PLANS = {
   pro_yearly: {
     name: 'Pro Yearly',
     price: 9900,
-    get priceId() { return appEnv.stripeYearlyPriceId() },
     features: ['Everything in Pro', 'Save 45% vs monthly', 'Priority support'],
     sessionLimitWeekly: null,
     aiCamera: true,
