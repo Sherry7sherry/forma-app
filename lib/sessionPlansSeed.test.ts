@@ -6,9 +6,12 @@ describe('session plan seed names', () => {
   it('uses a non-series name for the postnatal foundation plan', () => {
     const fullSetup = readFileSync('supabase/migrations/000_full_setup.sql', 'utf8')
     const exerciseSeed = readFileSync('supabase/migrations/002_seed_exercises.sql', 'utf8')
+    const renameMigration = readFileSync('supabase/migrations/006_rename_session_plans.sql', 'utf8')
 
     assert.match(fullSetup, /Postnatal Foundation/)
     assert.match(exerciseSeed, /Postnatal Foundation/)
+    assert.match(renameMigration, /Postnatal Foundation/)
+    assert.match(renameMigration, /Postnatal Recovery — Week 1/)
     assert.doesNotMatch(fullSetup, /Postnatal Recovery — Week 1/)
     assert.doesNotMatch(exerciseSeed, /Postnatal Recovery — Week 1/)
   })

@@ -40,7 +40,7 @@ export default async function ProfilePage() {
             </svg>
           </div>
         </div>
-        <h2 className="font-serif text-xl font-medium mb-1">{profile?.full_name ?? firstName}</h2>
+        <h1 className="font-serif text-xl font-medium mb-1">{profile?.full_name ?? firstName}</h1>
         <p className="text-muted text-xs">
           {isPro ? 'Forma Pro' : 'Forma Free'}{joinedDate ? ` · Member since ${joinedDate}` : ''}
         </p>
@@ -93,7 +93,7 @@ export default async function ProfilePage() {
           <VoiceCoachingToggle userId={user!.id} initialEnabled={profile?.voice_coaching_enabled ?? true} />
         </div>
         <SettingItem icon="📊" iconBg="bg-amber-100" label="Session difficulty" value="Moderate — coming soon" />
-        <SettingItem icon="🔔" iconBg="bg-rose/15" label="Daily reminder" value="8:00 AM" toggle />
+        <SettingItem icon="🔔" iconBg="bg-rose/15" label="Daily reminder" value="8:00 AM — coming soon" />
       </SettingGroup>
 
       <SettingGroup title="Account">
@@ -129,8 +129,8 @@ function SettingGroup({ title, children }: { title: string; children: React.Reac
   )
 }
 
-function SettingItem({ icon, iconBg, label, value, arrow, toggle }:
-  { icon: string; iconBg: string; label: string; value: string; arrow?: boolean; toggle?: boolean }) {
+function SettingItem({ icon, iconBg, label, value, arrow }:
+  { icon: string; iconBg: string; label: string; value: string; arrow?: boolean }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3.5 active:bg-cream-dark transition-colors">
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${iconBg}`}>
@@ -141,16 +141,6 @@ function SettingItem({ icon, iconBg, label, value, arrow, toggle }:
         <div className="text-xs text-muted">{value}</div>
       </div>
       {arrow && <span className="text-border text-lg">›</span>}
-      {toggle && <ToggleSwitch defaultOn />}
-    </div>
-  )
-}
-
-function ToggleSwitch({ defaultOn }: { defaultOn?: boolean }) {
-  // Client-side toggle via CSS trick
-  return (
-    <div className={`w-11 h-6 rounded-full relative cursor-pointer transition-colors ${defaultOn ? 'bg-sage' : 'bg-border'}`}>
-      <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${defaultOn ? 'left-[22px]' : 'left-0.5'}`}/>
     </div>
   )
 }

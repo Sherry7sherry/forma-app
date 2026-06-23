@@ -76,13 +76,15 @@ export default async function SessionPage({ params }: Props) {
   } : null
 
   return (
-    <SessionPlayer
-      plan={plan}
-      userId={user.id}
-      isPro={isPro}
-      voiceCoachingEnabled={profile?.voice_coaching_enabled ?? true}
-      sessionsThisWeek={sessionsThisWeek ?? 0}
-      partialSession={partialSession}
-    />
+    <main>
+      <SessionPlayer
+        plan={plan}
+        userId={user.id}
+        isPro={isPro}
+        voiceCoachingEnabled={profile?.voice_coaching_enabled ?? true}
+        sessionsThisWeek={sessionsThisWeek ?? 0}
+        partialSession={partialSession}
+      />
+    </main>
   )
 }
