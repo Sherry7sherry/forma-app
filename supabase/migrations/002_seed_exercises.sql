@@ -312,7 +312,7 @@ values
  ARRAY['core_pelvic','lower_back','neck_shoulders'],
  true, '⭐', 'from-sage to-sage-dark'),
 
-('Postnatal Recovery — Week 1',
+('Postnatal Foundation',
  'Gentle reconnection for the postnatal body. Focus on breath, pelvic floor, and foundational core without strain.',
  'core', 'gentle', 20,
  ARRAY['recovery'],
