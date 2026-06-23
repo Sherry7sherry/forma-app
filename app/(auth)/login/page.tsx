@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const router   = useRouter()
-  const supabase = createClient()
 
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -29,6 +28,7 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       if (error.message.includes('Invalid login')) {
@@ -46,6 +46,7 @@ export default function LoginPage() {
   }
 
   async function handleGoogle() {
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
@@ -58,6 +59,7 @@ export default function LoginPage() {
       setFieldErrors(f => ({ ...f, email: 'Enter your email above first' }))
       return
     }
+    const supabase = createClient()
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     })

@@ -18,7 +18,6 @@ function SignupForm() {
   const searchParams = useSearchParams()
   const isPro        = searchParams.get('plan') === 'pro'
 
-  const supabase = createClient()
   const [fullName, setFullName] = useState('')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -42,6 +41,7 @@ function SignupForm() {
     setLoading(true)
     setError(null)
 
+    const supabase = createClient()
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -68,6 +68,7 @@ function SignupForm() {
     const redirectTo = isPro
       ? `${window.location.origin}/auth/callback?plan=pro`
       : `${window.location.origin}/auth/callback`
+    const supabase = createClient()
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },
