@@ -1,10 +1,12 @@
 import Stripe from 'stripe'
 import { appEnv } from '@/lib/env'
 
-export const stripe = new Stripe(appEnv.stripeSecretKey(), {
-  apiVersion: '2024-06-20',
-  typescript: true,
-})
+export function getStripe() {
+  return new Stripe(appEnv.stripeSecretKey(), {
+    apiVersion: '2024-06-20',
+    typescript: true,
+  })
+}
 
 export const PLANS = {
   free: {
@@ -17,7 +19,7 @@ export const PLANS = {
   pro_monthly: {
     name: 'Pro Monthly',
     price: 1499, // cents
-    priceId: appEnv.stripeMonthlyPriceId(),
+    get priceId() { return appEnv.stripeMonthlyPriceId() },
     features: ['Unlimited sessions', 'Real-time AI form analysis', 'Full progress tracking', 'All session types'],
     sessionLimitWeekly: null,
     aiCamera: true,
@@ -25,7 +27,7 @@ export const PLANS = {
   pro_yearly: {
     name: 'Pro Yearly',
     price: 9900,
-    priceId: appEnv.stripeYearlyPriceId(),
+    get priceId() { return appEnv.stripeYearlyPriceId() },
     features: ['Everything in Pro', 'Save 45% vs monthly', 'Priority support'],
     sessionLimitWeekly: null,
     aiCamera: true,

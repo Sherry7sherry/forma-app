@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { stripe, PLANS } from '@/lib/stripe'
+import { getStripe, PLANS } from '@/lib/stripe'
 import { appEnv } from '@/lib/env'
 
 // POST only — this route has side effects (creates a Stripe customer + checkout
 // session). A GET can be triggered by browser/crawler link prefetch and spawn
 // stray customers/sessions; a POST submitted from a <form> is never prefetched.
 export async function POST(request: Request) {
+  const stripe = getStripe()
   const { searchParams } = new URL(request.url)
   const plan = searchParams.get('plan') as 'monthly' | 'yearly' | null
 
