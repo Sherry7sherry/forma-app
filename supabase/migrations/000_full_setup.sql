@@ -482,7 +482,7 @@ values
  ARRAY['strength','alignment','flexibility'],
  ARRAY['core_pelvic','lower_back','neck_shoulders'],
  true, '⭐', 'from-sage to-sage-dark'),
-('Postnatal Recovery — Week 1',
+('Postnatal Foundation',
  'Gentle reconnection for the postnatal body. Focus on breath, pelvic floor, and foundational core without strain.',
  'core', 'gentle', 20,
  ARRAY['recovery'],
@@ -538,12 +538,12 @@ from (values
   ('Full Body Pilates — Moderate', 'Pilates Push-Up',       5),
   ('Full Body Pilates — Moderate', 'Swan Prep',             6),
   ('Full Body Pilates — Moderate', 'Mermaid Stretch',       7),
-  -- Postnatal Recovery — Week 1
-  ('Postnatal Recovery — Week 1', 'Diaphragmatic Breathing', 0),
-  ('Postnatal Recovery — Week 1', 'Pelvic Floor Activation', 1),
-  ('Postnatal Recovery — Week 1', 'Pelvic Tilts',           2),
-  ('Postnatal Recovery — Week 1', 'Glute Bridge',           3),
-  ('Postnatal Recovery — Week 1', 'Constructive Rest',      4)
+  -- Postnatal Foundation
+  ('Postnatal Foundation', 'Diaphragmatic Breathing', 0),
+  ('Postnatal Foundation', 'Pelvic Floor Activation', 1),
+  ('Postnatal Foundation', 'Pelvic Tilts',           2),
+  ('Postnatal Foundation', 'Glute Bridge',           3),
+  ('Postnatal Foundation', 'Constructive Rest',      4)
 ) as v(plan_name, ex_name, ord)
 join public.session_plans sp on sp.name = v.plan_name
 join public.exercises     ex on ex.name = v.ex_name

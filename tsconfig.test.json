@@ -18,6 +18,7 @@
     "lib/poseTracking.ts",
     "lib/poseTracking.test.ts",
     "lib/exerciseTracking.ts",
-    "lib/exerciseTracking.test.ts"
+    "lib/exerciseTracking.test.ts",
+    "lib/sessionPlansSeed.test.ts"
   ]
 }
