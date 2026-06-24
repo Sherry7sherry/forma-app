@@ -52,7 +52,7 @@ type ActiveStage = 'calibrating' | 'exercising'
 
 const REP_COOLDOWN_MS      = 700    // minimum ms between two counted reps — prevents double-counting
 const MOVEMENT_TIMEOUT_MS  = 12_000    // how long to wait at baseline before nudging "movement not detected yet"
-const REP_COUNTED_DISPLAY_MS = 1100    // how long the "Rep counted" state/flash lingers before reverting
+const REP_COUNTED_DISPLAY_MS = 800    // how long the "+1" confirmation lingers before reverting
 
 // ── AI rep-counting state machine ──────────────────────────────────
 // Treats rep counting as explicit states (not a silent threshold check) so
@@ -818,7 +818,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   function flashRep() {
     setRepFlash(true)
     if (repFlashTimerRef.current) clearTimeout(repFlashTimerRef.current)
-    repFlashTimerRef.current = setTimeout(() => setRepFlash(false), 900)
+    repFlashTimerRef.current = setTimeout(() => setRepFlash(false), REP_COUNTED_DISPLAY_MS)
   }
 
   /** Move the AI rep state machine to a new phase, mirror it in the ref, and speak its cue (if any). */
@@ -1519,12 +1519,19 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   // live on the intro/setup screen and in voice prompts; here we keep only a
   // minimal floating overlay (exercise name, rep/timer, one status chip) plus
   // controls that float over the video instead of stealing vertical space.
-  if (isPro) {
-    const calibrating = activeStage === 'calibrating'
-    return (
-      <div className="fixed inset-0 h-[100dvh] w-screen bg-black overflow-hidden">
-        {/* Full-bleed camera — the primary product surface */}
-        <PoseCamera
+	  if (isPro) {
+	    const calibrating = activeStage === 'calibrating'
+	    return (
+	      <div className="fixed inset-0 h-[100dvh] w-screen bg-black overflow-hidden">
+	        {repFlash && (
+	          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+	            <div className="rep-pulse rounded-full bg-sage-light/90 px-8 py-5 text-5xl font-bold text-white shadow-[0_0_40px_rgba(122,158,142,.45)] animate-pulse">
+	              +1
+	            </div>
+	          </div>
+	        )}
+	        {/* Full-bleed camera — the primary product surface */}
+	        <PoseCamera
           onPoseResult={handlePoseResult}
           active={!paused}
           exerciseName={exercise?.name}
@@ -1709,10 +1716,17 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     )
   }
 
-  // ── ACTIVE · FREE (no camera — classic dashboard layout) ──────
-  return (
-    <div className="min-h-dvh bg-charcoal flex flex-col">
-      {/* Top bar */}
+	  // ── ACTIVE · FREE (no camera — classic dashboard layout) ──────
+	  return (
+	    <div className="min-h-dvh bg-charcoal flex flex-col">
+	      {repFlash && (
+	        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+	          <div className="rep-pulse rounded-full bg-sage-light/90 px-8 py-5 text-5xl font-bold text-white shadow-[0_0_40px_rgba(122,158,142,.45)] animate-pulse">
+	            +1
+	          </div>
+	        </div>
+	      )}
+	      {/* Top bar */}
       <div className="flex items-center gap-4 px-5 pt-14 pb-3 bg-charcoal">
         <button onClick={handleExitRequest} aria-label="Exit session"
           className="flex items-center gap-1 text-white/40 active:text-white transition-colors text-xs">

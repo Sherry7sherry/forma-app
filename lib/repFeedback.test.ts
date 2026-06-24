@@ -36,4 +36,10 @@ describe('session rep feedback copy', () => {
     assert.match(source, /Soften your ribs/)
     assert.match(source, /Leave space under your chin/)
   })
+
+  it('shows a strong center-screen counted rep confirmation', () => {
+    assert.match(source, /\+1/)
+    assert.match(source, /rep-pulse/)
+    assert.match(source, /REP_COUNTED_DISPLAY_MS\s*=\s*800/)
+  })
 })
