@@ -40,7 +40,7 @@ Files changed
 - `lib/exerciseTracking.test.ts`
 
 Commit hash
-- `29e0bd7`
+- `2a12eb1`
 
 Test command and result summary
 - Command: `npm test`
@@ -50,3 +50,23 @@ Test command and result summary
 How each review finding was addressed
 - Finding 1: Updated seated front-view overrides so `Spine Twist` and `Saw` use `cameraOrientation: 'either'` instead of `portrait`, matching the codebase meaning of physical device orientation.
 - Finding 2: Added public export `EXPLICIT_EXERCISE_PROFILE_NAMES` from `lib/exerciseTracking.ts`, then updated tests to assert all 30 replacement names are explicitly overridden, to verify `Spine Twist` and `Saw` do not require portrait, and to confirm `Standing Roll Down` is excluded from `FLOOR_EXERCISE_NAMES` while using the standing profile when `isFloorExercise=false`.
+
+FIX STATUS
+- Complete
+
+Files changed
+- `lib/exerciseTracking.ts`
+- `lib/exerciseTracking.test.ts`
+
+Commit hash
+- `5ac4926`
+
+Test command and result summary
+- Command: `npm test`
+- Result: pass
+- Summary: 24 tests passed, 0 failed, 9 suites passed
+
+How the finding was addressed
+- Removed the public export `EXPLICIT_EXERCISE_PROFILE_NAMES` so `PROFILE_OVERRIDES` remains private to `lib/exerciseTracking.ts`.
+- Reworked `lib/exerciseTracking.test.ts` to read `lib/exerciseTracking.ts` as source text, extract the `PROFILE_OVERRIDES` block, and verify that all 30 replacement exercise names are present as explicit overrides without introducing new public API.
+- Preserved the behavior checks ensuring `Spine Twist` and `Saw` use `cameraOrientation: 'either'` and `Standing Roll Down` stays out of `FLOOR_EXERCISE_NAMES` while using the non-floor standing profile.
