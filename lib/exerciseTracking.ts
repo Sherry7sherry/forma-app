@@ -162,9 +162,9 @@ const PROFILE_OVERRIDES: Record<string, Partial<ExerciseTrackingProfile>> = {
   'Leg Pull Front Prep': { ...FULL_BODY_PROFILE, engageThreshold: 0.15, returnThreshold: 0.06 },
   'Standing Roll Down': { ...STANDING_PROFILE, cameraOrientation: 'either', engageThreshold: 0.2, returnThreshold: 0.08 },
   'Swan': { ...PRONE_PROFILE, engageThreshold: 0.15, returnThreshold: 0.06 },
-  'Spine Twist': { ...SEATED_PROFILE, cameraOrientation: 'portrait', engageThreshold: 0.12, returnThreshold: 0.05 },
+  'Spine Twist': { ...SEATED_PROFILE, cameraOrientation: 'either', engageThreshold: 0.12, returnThreshold: 0.05 },
   'Single Leg Kick': { ...PRONE_PROFILE, engageThreshold: 0.13, returnThreshold: 0.055 },
-  'Saw': { ...SEATED_PROFILE, cameraOrientation: 'portrait', minVisibleRatio: 0.62, engageThreshold: 0.17, returnThreshold: 0.07 },
+  'Saw': { ...SEATED_PROFILE, cameraOrientation: 'either', minVisibleRatio: 0.62, engageThreshold: 0.17, returnThreshold: 0.07 },
   'Leg Pull Back': { ...FULL_BODY_PROFILE, engageThreshold: 0.17, returnThreshold: 0.07 },
   'Side Lift': { ...FULL_BODY_PROFILE, landmarks: SIDE_LYING_LANDMARKS, minVisibleRatio: 0.7, minVisibleLandmarks: 6, engageThreshold: 0.15, returnThreshold: 0.06 },
   'Single Leg Stretch': { ...SUPINE_PROFILE, engageThreshold: 0.15, returnThreshold: 0.06 },
@@ -174,6 +174,8 @@ const PROFILE_OVERRIDES: Record<string, Partial<ExerciseTrackingProfile>> = {
   'Double Leg Stretch': { ...SUPINE_PROFILE, landmarks: STANDING_LANDMARKS, minVisibleRatio: 0.65, minVisibleLandmarks: 7, engageThreshold: 0.17, returnThreshold: 0.07 },
   'Pilates Push Up': { ...FULL_BODY_PROFILE, engageThreshold: 0.2, returnThreshold: 0.08 },
 }
+
+export const EXPLICIT_EXERCISE_PROFILE_NAMES = new Set(Object.keys(PROFILE_OVERRIDES))
 
 export const FLOOR_EXERCISE_NAMES = new Set([
   'Cat-Cow Stretch',

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { getExerciseTrackingProfile } from './exerciseTracking.js'
+import {
+  EXPLICIT_EXERCISE_PROFILE_NAMES,
+  FLOOR_EXERCISE_NAMES,
+  getExerciseTrackingProfile,
+} from './exerciseTracking.js'
 
 describe('getExerciseTrackingProfile', () => {
   it('returns a specialized profile for known movements', () => {
@@ -61,6 +65,12 @@ const NEW_EXERCISE_NAMES = [
 describe('replacement exercise tracking profiles', () => {
   it('has an explicit profile for every replacement exercise', () => {
     for (const exerciseName of NEW_EXERCISE_NAMES) {
+      assert.equal(
+        EXPLICIT_EXERCISE_PROFILE_NAMES.has(exerciseName),
+        true,
+        `${exerciseName} should have an explicit profile override`,
+      )
+
       const profile = getExerciseTrackingProfile(exerciseName, true, 'reps')
 
       assert.ok(profile.landmarks.length > 0, `${exerciseName} should define landmarks`)
@@ -86,5 +96,24 @@ describe('replacement exercise tracking profiles', () => {
       assert.ok(profile.minVisibleRatio <= 0.6)
       assert.ok(profile.engageThreshold <= 0.14)
     }
+  })
+
+  it('does not require portrait orientation for seated front-view exercises', () => {
+    for (const exerciseName of ['Spine Twist', 'Saw']) {
+      const profile = getExerciseTrackingProfile(exerciseName, true, 'reps')
+
+      assert.equal(profile.cameraOrientation, 'either')
+    }
+  })
+
+  it('keeps standing roll down out of floor fallbacks', () => {
+    assert.equal(FLOOR_EXERCISE_NAMES.has('Standing Roll Down'), false)
+
+    const profile = getExerciseTrackingProfile('Standing Roll Down', false, 'reps')
+
+    assert.equal(profile.cameraOrientation, 'either')
+    assert.deepEqual(profile.landmarks, [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28])
+    assert.ok(profile.minVisibleRatio >= 0.72)
+    assert.ok(profile.minVisibleLandmarks >= 8)
   })
 })
