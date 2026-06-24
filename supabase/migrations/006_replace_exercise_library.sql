@@ -308,49 +308,4 @@ set exercise_id = excluded.exercise_id,
     reps_override = excluded.reps_override,
     rest_after_seconds = excluded.rest_after_seconds;
 
-with replacement_names(name) as (
-  values
-  ('Chest Lift'),
-  ('Glute Bridge'),
-  ('Dead Bug'),
-  ('Femur Arcs'),
-  ('Bent Knee Opening'),
-  ('Supine Knee Sways'),
-  ('Arm Arcs'),
-  ('Assisted Roll Up'),
-  ('Roll Up'),
-  ('Side Kick'),
-  ('Prone Press Up'),
-  ('Book Opening'),
-  ('Spine Stretch Forward'),
-  ('Hundred Prep'),
-  ('Mermaid Stretch'),
-  ('Quadruped Rock Back'),
-  ('Leg Pull Front Prep'),
-  ('Standing Roll Down'),
-  ('Swan'),
-  ('Spine Twist'),
-  ('Single Leg Kick'),
-  ('Saw'),
-  ('Leg Pull Back'),
-  ('Side Lift'),
-  ('Single Leg Stretch'),
-  ('Criss Cross'),
-  ('Single Leg Circle'),
-  ('Double Leg Kick'),
-  ('Double Leg Stretch'),
-  ('Pilates Push Up')
-)
-delete from public.exercises ex
-where not exists (
-    select 1
-    from replacement_names rn
-    where rn.name = ex.name
-  )
-  and not exists (
-    select 1
-    from public.session_plan_exercises spe
-    where spe.exercise_id = ex.id
-  );
-
 notify pgrst, 'reload schema';
