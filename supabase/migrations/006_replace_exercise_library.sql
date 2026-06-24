@@ -236,6 +236,10 @@ set description = excluded.description,
     pose_definition = excluded.pose_definition,
     is_pro = excluded.is_pro;
 
+update public.session_plans
+set name = 'Full Body Pilates - Moderate'
+where name = 'Full Body Pilates — Moderate';
+
 delete from public.session_plan_exercises spe
 using public.session_plans sp
 where spe.session_plan_id = sp.id

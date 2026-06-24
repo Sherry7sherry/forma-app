@@ -85,6 +85,19 @@ function parsePlanExerciseRows(block: string) {
 }
 
 describe('session plan seed names', () => {
+  it('preserves the legacy full body plan name in older seeds and normalizes it in the replacement migration', () => {
+    const fullSetup = readFileSync('supabase/migrations/000_full_setup.sql', 'utf8')
+    const exerciseSeed = readFileSync('supabase/migrations/002_seed_exercises.sql', 'utf8')
+    const replacementSeed = readReplacementSeed()
+
+    assert.match(fullSetup, /Full Body Pilates — Moderate/)
+    assert.match(exerciseSeed, /Full Body Pilates — Moderate/)
+    assert.match(
+      replacementSeed,
+      /update public\.session_plans\s+set name = 'Full Body Pilates - Moderate'\s+where name = 'Full Body Pilates — Moderate'/,
+    )
+  })
+
   it('uses a non-series name for the postnatal foundation plan', () => {
     const fullSetup = readFileSync('supabase/migrations/000_full_setup.sql', 'utf8')
     const exerciseSeed = readFileSync('supabase/migrations/002_seed_exercises.sql', 'utf8')
