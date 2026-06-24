@@ -162,6 +162,15 @@ function describeAiRepStatus(phase: AiRepPhase, detail: FramingDetail, movementS
   }
 }
 
+type RepCycleStage = 'Start' | 'Move' | 'Return' | 'Count'
+
+function repCycleStage(phase: AiRepPhase): RepCycleStage {
+  if (phase === 'waiting_for_return_phase') return 'Return'
+  if (phase === 'rep_counted') return 'Count'
+  if (phase === 'waiting_for_engaged_phase') return 'Move'
+  return 'Start'
+}
+
 const CAMERA_GUIDES: Record<string, { position: string; distance: string; angle: string; tip: string }> = {
   spine:     { position: 'Side view', distance: '6–8 feet away', angle: 'Hip height', tip: 'Full body visible, head to feet' },
   core:      { position: 'Side view', distance: '5–6 feet away', angle: 'Floor level or low stool', tip: 'Lie on your mat — camera sees whole body' },
@@ -982,6 +991,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   // Single source of truth for the AI rep-counting chip/message/voice — keeps
   // on-screen copy and spoken prompts perfectly in sync with the state machine.
   const aiStatus = describeAiRepStatus(aiRepPhase, framingDetail, movementStale)
+  const cycleStage = repCycleStage(aiRepPhase)
   const AI_STATUS_TONE_CLASSES: Record<AiRepStatus['tone'], string> = {
     tracking:  'bg-sage/20 text-sage-light',
     success:   'bg-sage/25 text-sage-light',
@@ -1560,19 +1570,30 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <div className="flex flex-col gap-3">
               {/* AI status line — mirrors the spoken cue, counted-rep exercises only */}
               {!isComplete && !isHold && aiRepSupported && (
-                <div className="flex items-center justify-center gap-2">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium
-                                    ${AI_STATUS_TONE_CLASSES[aiStatus.tone]}`}>
-                    {aiStatus.tone === 'tracking' && '🤖 '}
-                    {aiStatus.tone === 'attention' && '👀 '}
-                    {aiStatus.tone === 'success' && '✓ '}
-                    {aiStatus.chip}
-                  </span>
-                  {repFlash && (
-                    <span className="px-3 py-1 rounded-full bg-sage/30 text-sage-light text-xs font-semibold animate-pulse">
-                      +1
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium
+                                      ${AI_STATUS_TONE_CLASSES[aiStatus.tone]}`}>
+                      {aiStatus.tone === 'tracking' && '🤖 '}
+                      {aiStatus.tone === 'attention' && '👀 '}
+                      {aiStatus.tone === 'success' && '✓ '}
+                      {aiStatus.chip}
                     </span>
-                  )}
+                    {repFlash && (
+                      <span className="px-3 py-1 rounded-full bg-sage/30 text-sage-light text-xs font-semibold animate-pulse">
+                        +1
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 px-8" aria-label="Rep cycle">
+                    {(['Start', 'Move', 'Return', 'Count'] as const).map(stage => (
+                      <div
+                        key={stage}
+                        className={`h-1.5 rounded-full ${cycleStage === stage ? 'bg-sage-light' : 'bg-white/15'}`}
+                        aria-label={stage}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1773,6 +1794,15 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <p role="status" aria-live="polite" className="px-1 text-[13px] leading-snug text-white/55">
               {aiStatus.message}
             </p>
+            <div className="grid grid-cols-4 gap-1" aria-label="Rep cycle">
+              {(['Start', 'Move', 'Return', 'Count'] as const).map(stage => (
+                <div
+                  key={stage}
+                  className={`h-1.5 rounded-full ${cycleStage === stage ? 'bg-sage-light' : 'bg-white/15'}`}
+                  aria-label={stage}
+                />
+              ))}
+            </div>
             <div className="flex items-center gap-2">
               <button onClick={() => adjustRep(-1)} aria-label="Decrease rep count"
                 className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/8 text-white text-lg

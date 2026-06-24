@@ -18,4 +18,12 @@ describe('session rep feedback copy', () => {
     assert.match(source, /Step back, I need your full body/)
     assert.match(source, /Improve lighting or slow down/)
   })
+
+  it('renders the rep cycle stage labels', () => {
+    assert.match(source, /Start/)
+    assert.match(source, /Move/)
+    assert.match(source, /Return/)
+    assert.match(source, /Count/)
+    assert.match(source, /repCycleStage/)
+  })
 })
