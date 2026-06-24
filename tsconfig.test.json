@@ -15,6 +15,7 @@
     "lib/stripeWebhook.test.ts",
     "lib/supabaseErrors.ts",
     "lib/supabaseErrors.test.ts",
+    "lib/supabaseClientEnv.test.ts",
     "lib/poseTracking.ts",
     "lib/poseTracking.test.ts",
     "lib/exerciseTracking.ts",
