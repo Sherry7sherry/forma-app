@@ -175,8 +175,6 @@ const PROFILE_OVERRIDES: Record<string, Partial<ExerciseTrackingProfile>> = {
   'Pilates Push Up': { ...FULL_BODY_PROFILE, engageThreshold: 0.2, returnThreshold: 0.08 },
 }
 
-export const EXPLICIT_EXERCISE_PROFILE_NAMES = new Set(Object.keys(PROFILE_OVERRIDES))
-
 export const FLOOR_EXERCISE_NAMES = new Set([
   'Cat-Cow Stretch',
   'Plank Hold',

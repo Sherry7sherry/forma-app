@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
 import {
-  EXPLICIT_EXERCISE_PROFILE_NAMES,
   FLOOR_EXERCISE_NAMES,
   getExerciseTrackingProfile,
 } from './exerciseTracking.js'
@@ -62,15 +62,41 @@ const NEW_EXERCISE_NAMES = [
   'Pilates Push Up',
 ] as const
 
+function readExerciseTrackingSource() {
+  return readFileSync('lib/exerciseTracking.ts', 'utf8')
+}
+
+function extractProfileOverridesBlock(source: string) {
+  const match = source.match(
+    /const PROFILE_OVERRIDES: Record<string, Partial<ExerciseTrackingProfile>> = \{(?<block>[\s\S]*?)\n\}\n\nexport const FLOOR_EXERCISE_NAMES/,
+  )
+
+  assert.ok(match?.groups?.block, 'Could not find PROFILE_OVERRIDES block')
+
+  return match.groups.block
+}
+
+function parseOverrideNames(block: string) {
+  return Array.from(
+    block.matchAll(/^\s*(?:'([^']+)'|"([^"]+)")\s*:\s*\{/gm),
+    (match) => match[1] ?? match[2],
+  )
+}
+
 describe('replacement exercise tracking profiles', () => {
   it('has an explicit profile for every replacement exercise', () => {
-    for (const exerciseName of NEW_EXERCISE_NAMES) {
-      assert.equal(
-        EXPLICIT_EXERCISE_PROFILE_NAMES.has(exerciseName),
-        true,
-        `${exerciseName} should have an explicit profile override`,
-      )
+    const overridesBlock = extractProfileOverridesBlock(readExerciseTrackingSource())
+    const overrideNames = parseOverrideNames(overridesBlock)
+    const uniqueOverrideNames = new Set(overrideNames)
 
+    assert.equal(overrideNames.length, uniqueOverrideNames.size)
+    assert.ok(
+      uniqueOverrideNames.size >= NEW_EXERCISE_NAMES.length,
+      'PROFILE_OVERRIDES should include at least the replacement exercise names',
+    )
+
+    for (const exerciseName of NEW_EXERCISE_NAMES) {
+      assert.equal(uniqueOverrideNames.has(exerciseName), true, `${exerciseName} should have an explicit profile override`)
       const profile = getExerciseTrackingProfile(exerciseName, true, 'reps')
 
       assert.ok(profile.landmarks.length > 0, `${exerciseName} should define landmarks`)
