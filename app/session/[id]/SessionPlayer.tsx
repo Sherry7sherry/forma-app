@@ -171,6 +171,34 @@ function repCycleStage(phase: AiRepPhase): RepCycleStage {
   return 'Start'
 }
 
+function detectQualityCue(exerciseName: string | undefined, landmarks: any[]): string | null {
+  if (!exerciseName || !landmarks?.length) return null
+
+  const leftEar = landmarks[7]
+  const rightEar = landmarks[8]
+  const leftShoulder = landmarks[11]
+  const rightShoulder = landmarks[12]
+  const leftHip = landmarks[23]
+  const rightHip = landmarks[24]
+  const leftKnee = landmarks[25]
+  const rightKnee = landmarks[26]
+
+  if (exerciseName === 'Glute Bridge') {
+    if (leftHip && rightHip && Math.abs(leftHip.y - rightHip.y) > 0.045) return 'Keep both hips level'
+    if (leftKnee && rightKnee && leftHip && rightHip && Math.abs(leftKnee.x - rightKnee.x) < Math.abs(leftHip.x - rightHip.x) * 0.65) return 'Press knees forward'
+    if (leftShoulder && rightShoulder && leftHip && rightHip) return 'Lift from your glutes'
+  }
+
+  if (exerciseName === 'Chest Lift') {
+    if (leftEar && leftShoulder && Math.abs(leftEar.x - leftShoulder.x) > 0.12) return 'Keep your neck long'
+    if (rightEar && rightShoulder && Math.abs(rightEar.x - rightShoulder.x) > 0.12) return 'Keep your neck long'
+    if (leftShoulder && rightShoulder && leftHip && rightHip && Math.abs(leftShoulder.y - leftHip.y) < 0.18) return 'Soften your ribs'
+    return 'Leave space under your chin'
+  }
+
+  return null
+}
+
 const CAMERA_GUIDES: Record<string, { position: string; distance: string; angle: string; tip: string }> = {
   spine:     { position: 'Side view', distance: '6–8 feet away', angle: 'Hip height', tip: 'Full body visible, head to feet' },
   core:      { position: 'Side view', distance: '5–6 feet away', angle: 'Floor level or low stool', tip: 'Lie on your mat — camera sees whole body' },
@@ -263,6 +291,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const [framingDetail, setFramingDetail] = useState<FramingDetail>(null)
   const [movementStale, setMovementStale] = useState(false)
   const [repFlash, setRepFlash]           = useState(false)  // brief "Rep counted" toast
+  const [qualityCue, setQualityCue]       = useState<string | null>(null)
   const [poseDebugEnabled, setPoseDebugEnabled] = useState(false)
   const [repDiagnostics, setRepDiagnostics] = useState({
     usable: false,
@@ -341,6 +370,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     setFramingDetail(null)
     setMovementStale(false)
     setRepFlash(false)
+    setQualityCue(null)
     // Re-arm calibration for the new exercise — the user may need to reposition.
     setCalibReady(false)
     setCalibCountdown(null)
@@ -837,6 +867,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       if (poseDebugRef.current) {
         setRepDiagnostics({ usable: false, visible: visibleCount, required: requiredCount, confidence, delta: 0 })
       }
+      setQualityCue(null)
       // Classify *why* we can't track confidently — drives both the chip copy and the voice cue.
       let detail: FramingDetail = 'low-confidence'
       if (result.framingStatus === 'no-body' || lm.length < 29) detail = 'no-body'
@@ -869,6 +900,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       framingDetailRef.current = null
       setFramingDetail(null)
     }
+    const nextQualityCue = detectQualityCue(exercisesRef.current[currentExRef.current]?.exercise?.name, lm)
+    setQualityCue(prev => (prev === nextQualityCue ? prev : nextQualityCue))
 
     // Hold the "Rep counted ✓" confirmation on screen for a beat before resuming detection.
     if (aiRepPhaseRef.current === 'rep_counted') return
@@ -1594,6 +1627,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
                       />
                     ))}
                   </div>
+                  {qualityCue && (
+                    <p className="px-1 text-center text-[13px] leading-snug text-sage-light" aria-live="polite">
+                      {qualityCue}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1794,6 +1832,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <p role="status" aria-live="polite" className="px-1 text-[13px] leading-snug text-white/55">
               {aiStatus.message}
             </p>
+            {qualityCue && (
+              <p className="px-1 text-[13px] leading-snug text-sage-light" aria-live="polite">
+                {qualityCue}
+              </p>
+            )}
             <div className="grid grid-cols-4 gap-1" aria-label="Rep cycle">
               {(['Start', 'Move', 'Return', 'Count'] as const).map(stage => (
                 <div

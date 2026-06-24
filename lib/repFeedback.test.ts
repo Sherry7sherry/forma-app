@@ -26,4 +26,14 @@ describe('session rep feedback copy', () => {
     assert.match(source, /Count/)
     assert.match(source, /repCycleStage/)
   })
+
+  it('contains initial Glute Bridge and Chest Lift quality cues', () => {
+    assert.match(source, /qualityCue/)
+    assert.match(source, /Keep both hips level/)
+    assert.match(source, /Press knees forward/)
+    assert.match(source, /Lift from your glutes/)
+    assert.match(source, /Keep your neck long/)
+    assert.match(source, /Soften your ribs/)
+    assert.match(source, /Leave space under your chin/)
+  })
 })
