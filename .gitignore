@@ -21,6 +21,7 @@ next-env.d.ts
 # ── Deploy / platform ───────────────────────────────────────────
 .vercel
 .worktrees/
+.superpowers/
 
 # ── Logs ────────────────────────────────────────────────────────
 npm-debug.log*
