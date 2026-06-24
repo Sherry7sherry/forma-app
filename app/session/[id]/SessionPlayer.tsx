@@ -96,31 +96,25 @@ function describeAiRepStatus(phase: AiRepPhase, detail: FramingDetail, movementS
       const isLost = phase === 'tracking_lost'
       if (detail === 'upper-body') {
         return {
-          chip: 'Upper body only',
+          chip: 'Step back',
           tone: 'attention',
-          message: isLost
-            ? 'Camera tracking lost — only your upper body is visible. Step back or rotate your phone.'
-            : 'We can only see your upper body. Step back so your full body is in frame.',
-          voice: { key: 'upper-body', text: "I can't see your full body. Step back or rotate your phone.", cooldownMs: 11_000 },
+          message: 'Step back, I need your full body.',
+          voice: { key: 'upper-body', text: 'Step back, I need your full body.', cooldownMs: 8_000 },
         }
       }
       if (detail === 'low-confidence') {
         return {
-          chip: 'Tracking confidence too low',
+          chip: 'Low confidence',
           tone: 'attention',
-          message: isLost
-            ? "Camera tracking lost. I can see you, but the key points are not clear enough."
-            : 'I can see you, but the key points are not clear enough yet — improve lighting or adjust the angle.',
-          voice: { key: 'tracking-low-confidence', text: "I can see you, but the key points are not clear enough yet. Adjust the angle or lighting.", cooldownMs: 11_000 },
+          message: 'Improve lighting or slow down.',
+          voice: { key: 'tracking-low-confidence', text: 'Improve lighting or slow down.', cooldownMs: 8_000 },
         }
       }
       return {
-        chip: 'Full body not visible',
+        chip: isLost ? 'Tracking lost' : 'Full body needed',
         tone: 'attention',
-        message: isLost
-          ? "Camera tracking lost. Move back into frame and keep your full body visible."
-          : 'Move back until your full body is visible to the camera.',
-        voice: { key: 'full-body', text: "I can't see your full body. Step back or rotate your phone.", cooldownMs: 11_000 },
+        message: 'Step back, I need your full body.',
+        voice: { key: 'full-body', text: 'Step back, I need your full body.', cooldownMs: 8_000 },
       }
     }
 
@@ -140,8 +134,8 @@ function describeAiRepStatus(phase: AiRepPhase, detail: FramingDetail, movementS
         return {
           chip: 'Movement not detected yet',
           tone: 'attention',
-          message: "Movement not detected yet — move at a clear, steady pace and we'll pick it up.",
-          voice: { key: 'movement-stale', text: 'Move slower and return to the starting position.', cooldownMs: 14_000 },
+          message: 'Move a little bigger.',
+          voice: { key: 'movement-stale', text: 'Move a little bigger.', cooldownMs: 8_000 },
         }
       }
       return {
@@ -152,18 +146,18 @@ function describeAiRepStatus(phase: AiRepPhase, detail: FramingDetail, movementS
 
     case 'waiting_for_return_phase':
       return {
-        chip: 'Return to start to count',
+        chip: 'Return to start',
         tone: 'tracking',
-        message: 'Return to the starting position to complete the rep.',
-        voice: { key: 'return-phase', text: 'Return to the starting position to complete the rep.', cooldownMs: 9_000 },
+        message: 'Return to start.',
+        voice: { key: 'return-phase', text: 'Return to start.', cooldownMs: 4_000 },
       }
 
     case 'rep_counted':
       return {
-        chip: 'Rep counted ✓',
+        chip: 'Counted +1',
         tone: 'success',
-        message: 'Nice — rep counted.',
-        voice: { key: 'rep-counted', text: 'Nice, rep counted.', cooldownMs: 26_000 },
+        message: 'Counted.',
+        voice: { key: `rep-counted-${Date.now()}`, text: 'Good.', cooldownMs: 0 },
       }
   }
 }
