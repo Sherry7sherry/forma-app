@@ -96,6 +96,11 @@ describe('session plan seed names', () => {
       replacementSeed,
       /update public\.session_plans\s+set name = 'Full Body Pilates - Moderate'\s+where name = 'Full Body Pilates — Moderate'/,
     )
+    assert.ok(
+      replacementSeed.indexOf("set name = 'Full Body Pilates - Moderate'") <
+        replacementSeed.indexOf('delete from public.session_plan_exercises'),
+      'legacy full-body plan name must be normalized before rebuilding plan exercise rows',
+    )
   })
 
   it('uses a non-series name for the postnatal foundation plan', () => {
