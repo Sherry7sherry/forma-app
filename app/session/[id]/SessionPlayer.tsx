@@ -44,11 +44,19 @@ const TRANSITION_COUNTDOWN = 5
 // Seconds of stable full-body framing before a Pro AI session auto-starts the
 // exercise. Mirrors the MVP's "hold steady, auto-start" calibration step.
 const CALIB_HOLD_SECONDS = 3
+const START_ANYWAY_DELAY_MS = 8_000
 
 // Active-phase sub-stages (Pro AI camera only). `calibrating` is the camera-first
 // "get your whole body in frame" gate; `exercising` is the live, counted exercise.
 // Free sessions skip straight to `exercising` (no camera to calibrate).
 type ActiveStage = 'calibrating' | 'exercising'
+
+interface CalibrationBlocker {
+  title: string
+  detail: string
+  stats: string
+  voice: VoiceCue
+}
 
 const REP_COOLDOWN_MS      = 700    // minimum ms between two counted reps — prevents double-counting
 const MOVEMENT_TIMEOUT_MS  = 12_000    // how long to wait at baseline before nudging "movement not detected yet"
@@ -171,6 +179,104 @@ function repCycleStage(phase: AiRepPhase): RepCycleStage {
   return 'Start'
 }
 
+function requiredVisibleLandmarks(profile: ReturnType<typeof getExerciseTrackingProfile>): number {
+  return Math.min(
+    profile.landmarks.length,
+    Math.max(
+      profile.minVisibleLandmarks,
+      Math.ceil(profile.landmarks.length * profile.minVisibleRatio),
+    ),
+  )
+}
+
+function describeCalibrationBlocker({
+  orientationReady,
+  expectedOrientation,
+  actualOrientation,
+  framingStatus,
+  confidence,
+  confidenceThreshold,
+  visibleCount,
+  requiredCount,
+  landmarksReady,
+}: {
+  orientationReady: boolean
+  expectedOrientation: 'portrait' | 'landscape' | 'either'
+  actualOrientation?: 'portrait' | 'landscape'
+  framingStatus: string
+  confidence: number
+  confidenceThreshold: number
+  visibleCount: number
+  requiredCount: number
+  landmarksReady: boolean
+}): CalibrationBlocker {
+  const stats = `Visible ${visibleCount}/${requiredCount} key points · confidence ${Math.round(confidence * 100)}%`
+
+  if (!orientationReady && expectedOrientation !== 'either') {
+    const direction = expectedOrientation === 'landscape' ? 'landscape' : 'portrait'
+    return {
+      title: `Rotate your phone to ${direction}`,
+      detail: actualOrientation
+        ? `I see ${actualOrientation}, but this exercise needs ${direction} so your whole body fits.`
+        : `This exercise needs ${direction} so your whole body fits.`,
+      stats,
+      voice: { key: `calib-orientation-${direction}`, text: `Rotate your phone to ${direction}.`, cooldownMs: 10_000 },
+    }
+  }
+
+  if (framingStatus === 'no-body') {
+    return {
+      title: 'No body detected',
+      detail: 'Step into the camera view, then pause for a moment.',
+      stats,
+      voice: { key: 'calib-no-body', text: 'Step into view, then pause for a moment.', cooldownMs: 10_000 },
+    }
+  }
+
+  if (framingStatus === 'upper-body') {
+    return {
+      title: 'Only upper body visible',
+      detail: 'Step back or lower the phone so hips, knees, and feet are visible too.',
+      stats,
+      voice: { key: 'calib-upper-body', text: 'Step back until I can see your legs.', cooldownMs: 10_000 },
+    }
+  }
+
+  if (framingStatus === 'partial') {
+    return {
+      title: 'Partially out of frame',
+      detail: 'Step back until your head, hips, knees, and feet all stay inside the view.',
+      stats,
+      voice: { key: 'calib-partial', text: 'Lower the camera or step back.', cooldownMs: 10_000 },
+    }
+  }
+
+  if (confidence < confidenceThreshold) {
+    return {
+      title: 'Confidence too low',
+      detail: 'Improve lighting, keep the phone steady, or slow down while setting up.',
+      stats,
+      voice: { key: 'calib-low-confidence', text: 'Improve the lighting and hold still.', cooldownMs: 10_000 },
+    }
+  }
+
+  if (!landmarksReady) {
+    return {
+      title: 'Need more key points visible',
+      detail: `Only ${visibleCount} of ${requiredCount} key points visible. Step back or adjust the camera angle.`,
+      stats,
+      voice: { key: 'calib-key-points', text: 'Adjust the camera so I can see more of you.', cooldownMs: 10_000 },
+    }
+  }
+
+  return {
+    title: 'Camera ready',
+    detail: 'Hold still. I will start automatically.',
+    stats,
+    voice: { key: 'calib-ready', text: 'Good. Hold still.', cooldownMs: 20_000 },
+  }
+}
+
 function detectQualityCue(exerciseName: string | undefined, landmarks: any[]): string | null {
   if (!exerciseName || !landmarks?.length) return null
 
@@ -283,8 +389,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const [activeStage, setActiveStage]   = useState<ActiveStage>(isPro ? 'calibrating' : 'exercising')
   const [calibReady, setCalibReady]     = useState(false)            // full-body + confident right now
   const [calibCountdown, setCalibCountdown] = useState<number | null>(null)
+  const [calibBlocker, setCalibBlocker] = useState<CalibrationBlocker | null>(null)
+  const [showStartAnyway, setShowStartAnyway] = useState(false)
   const activeStageRef  = useRef<ActiveStage>(isPro ? 'calibrating' : 'exercising')
   const calibTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null)
+  const calibFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Auto rep counting — AI rep state machine (Pro · AI camera) ─
   const [aiRepPhase, setAiRepPhase]       = useState<AiRepPhase>('waiting_for_full_body')
@@ -374,7 +483,10 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // Re-arm calibration for the new exercise — the user may need to reposition.
     setCalibReady(false)
     setCalibCountdown(null)
+    setCalibBlocker(null)
+    setShowStartAnyway(false)
     if (calibTimerRef.current) { clearInterval(calibTimerRef.current); calibTimerRef.current = null }
+    if (calibFallbackTimerRef.current) { clearTimeout(calibFallbackTimerRef.current); calibFallbackTimerRef.current = null }
     if (repFlashTimerRef.current) clearTimeout(repFlashTimerRef.current)
     if (repCountedTimerRef.current) clearTimeout(repCountedTimerRef.current)
     if (movementStaleTimerRef.current) clearTimeout(movementStaleTimerRef.current)
@@ -615,7 +727,10 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   function primeActiveStage() {
     setCalibReady(false)
     setCalibCountdown(null)
+    setCalibBlocker(null)
+    setShowStartAnyway(false)
     if (calibTimerRef.current) { clearInterval(calibTimerRef.current); calibTimerRef.current = null }
+    if (calibFallbackTimerRef.current) { clearTimeout(calibFallbackTimerRef.current); calibFallbackTimerRef.current = null }
     const stage: ActiveStage = isPro ? 'calibrating' : 'exercising'
     activeStageRef.current = stage
     setActiveStage(stage)
@@ -634,7 +749,10 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
    */
   function startExercising() {
     if (calibTimerRef.current) { clearInterval(calibTimerRef.current); calibTimerRef.current = null }
+    if (calibFallbackTimerRef.current) { clearTimeout(calibFallbackTimerRef.current); calibFallbackTimerRef.current = null }
     setCalibCountdown(null)
+    setShowStartAnyway(false)
+    setCalibBlocker(null)
     activeStageRef.current = 'exercising'
     setActiveStage('exercising')
     autoAdvancedRef.current = false
@@ -809,6 +927,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     if (holdTimerRef.current) clearInterval(holdTimerRef.current)
     if (transitionTimerRef.current) clearInterval(transitionTimerRef.current)
     if (introTimerRef.current) clearInterval(introTimerRef.current)
+    if (calibTimerRef.current) clearInterval(calibTimerRef.current)
+    if (calibFallbackTimerRef.current) clearTimeout(calibFallbackTimerRef.current)
     if (repFlashTimerRef.current) clearTimeout(repFlashTimerRef.current)
     if (repCountedTimerRef.current) clearTimeout(repCountedTimerRef.current)
     if (movementStaleTimerRef.current) clearTimeout(movementStaleTimerRef.current)
@@ -1002,13 +1122,48 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // full body is confidently in frame — that's what drives the auto-start
     // countdown. We don't count reps until the exercise has actually started.
     if (isPro && activeStageRef.current === 'calibrating') {
+      const lm = result.landmarks ?? []
+      const confidence = result.bodyConfidence ?? 0
+      const visibleCount = trackingProfile.landmarks.filter(
+        index => (lm[index]?.visibility ?? 0) >= trackingProfile.minVisibility,
+      ).length
+      const requiredCount = requiredVisibleLandmarks(trackingProfile)
       const orientationReady = trackingProfile.cameraOrientation === 'either'
         || result.diagnostics?.orientation === trackingProfile.cameraOrientation
+      const landmarksReady = hasTrackingCoverage(lm, trackingProfile.landmarks, trackingProfile)
       const ready = orientationReady
         && result.framingStatus === 'full-body'
-        && (result.bodyConfidence ?? 0) >= trackingProfile.confidenceThreshold
-        && hasTrackingCoverage(result.landmarks, trackingProfile.landmarks, trackingProfile)
+        && confidence >= trackingProfile.confidenceThreshold
+        && landmarksReady
+      const blocker = describeCalibrationBlocker({
+        orientationReady,
+        expectedOrientation: trackingProfile.cameraOrientation,
+        actualOrientation: result.diagnostics?.orientation,
+        framingStatus: result.framingStatus,
+        confidence,
+        confidenceThreshold: trackingProfile.confidenceThreshold,
+        visibleCount,
+        requiredCount,
+        landmarksReady,
+      })
+      setCalibBlocker(blocker)
+      voiceCoachRef.current.speak(blocker.voice, voiceEnabledRef.current)
       setCalibReady(prev => (prev === ready ? prev : ready))
+      if (ready) {
+        if (calibFallbackTimerRef.current) {
+          clearTimeout(calibFallbackTimerRef.current)
+          calibFallbackTimerRef.current = null
+        }
+        setShowStartAnyway(false)
+      } else if (!calibFallbackTimerRef.current) {
+        calibFallbackTimerRef.current = setTimeout(() => {
+          setShowStartAnyway(true)
+          voiceCoachRef.current.speak(
+            { key: 'calib-start-anyway', text: 'You can start anyway if you want.', cooldownMs: 30_000 },
+            voiceEnabledRef.current,
+          )
+        }, START_ANYWAY_DELAY_MS)
+      }
       return
     }
     // Auto rep counting is a Pro AI-camera feature. It only runs once the
@@ -1587,7 +1742,19 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
                     <p className="text-sage-light text-xs mt-1.5">Hold still — starting automatically</p>
                   </>
                 ) : (
-                  <p className="text-white/85 text-sm">Get your full body in frame to begin</p>
+                  <div role="status" aria-live="polite" className="space-y-1">
+                    <p className="text-white text-sm font-semibold">
+                      {calibBlocker?.title ?? 'Checking camera setup'}
+                    </p>
+                    <p className="text-white/65 text-xs leading-snug max-w-xs mx-auto">
+                      {calibBlocker?.detail ?? 'I am checking orientation, framing, confidence, and visible key points.'}
+                    </p>
+                    {calibBlocker?.stats && (
+                      <p className="text-white/35 text-[11px] leading-tight">
+                        {calibBlocker.stats}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-3 w-full max-w-sm">
@@ -1595,11 +1762,17 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
                   className="px-4 py-3 rounded-full bg-white/10 text-white/70 text-xs font-medium active:bg-white/20">
                   Exit
                 </button>
-                <button onClick={startExercising}
-                  className="flex-1 py-3.5 rounded-full bg-sage text-white text-sm font-semibold
-                             shadow-[0_4px_16px_rgba(122,158,142,.4)] active:scale-[.97] transition-transform">
-                  Start now
-                </button>
+                {showStartAnyway ? (
+                  <button onClick={startExercising}
+                    className="flex-1 py-3.5 rounded-full bg-sage text-white text-sm font-semibold
+                               shadow-[0_4px_16px_rgba(122,158,142,.4)] active:scale-[.97] transition-transform">
+                    Start anyway
+                  </button>
+                ) : (
+                  <div className="flex-1 py-3.5 rounded-full bg-white/8 text-white/45 text-xs font-medium text-center border border-white/10">
+                    Start anyway appears soon
+                  </div>
+                )}
                 <button onClick={handleSkipRequest} aria-label="Skip exercise"
                   className="px-4 py-3 rounded-full bg-white/10 text-white/60 text-xs font-medium active:bg-white/20">
                   Skip

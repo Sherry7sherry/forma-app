@@ -42,4 +42,23 @@ describe('session rep feedback copy', () => {
     assert.match(source, /rep-pulse/)
     assert.match(source, /REP_COUNTED_DISPLAY_MS\s*=\s*800/)
   })
+
+  it('explains calibration start blockers and exposes delayed manual fallback', () => {
+    assert.match(source, /START_ANYWAY_DELAY_MS\s*=\s*8_000/)
+    assert.match(source, /calibBlocker/)
+    assert.match(source, /Rotate your phone to/)
+    assert.match(source, /No body detected/)
+    assert.match(source, /Only upper body visible/)
+    assert.match(source, /Confidence too low/)
+    assert.match(source, /key points visible/)
+    assert.match(source, /Start anyway/)
+  })
+
+  it('speaks short calibration blocker cues without reading diagnostics aloud', () => {
+    assert.match(source, /voice:\s*\{\s*key:\s*'calib-upper-body'/)
+    assert.match(source, /Step back until I can see your legs/)
+    assert.match(source, /Lower the camera or step back/)
+    assert.match(source, /You can start anyway if you want/)
+    assert.doesNotMatch(source, /text:\s*`Only \$\{visibleCount\} of \$\{requiredCount\}/)
+  })
 })
