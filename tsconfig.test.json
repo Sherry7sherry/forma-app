@@ -16,6 +16,7 @@
     "lib/supabaseErrors.ts",
     "lib/supabaseErrors.test.ts",
     "lib/supabaseClientEnv.test.ts",
+    "lib/poseCameraConfig.test.ts",
     "lib/repFeedback.test.ts",
     "lib/poseTracking.ts",
     "lib/poseTracking.test.ts",

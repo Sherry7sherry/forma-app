@@ -60,6 +60,8 @@ export interface PoseDiagnostics {
   visibleLandmarks: number
   trackedLandmarks: number
   bodyConfidence: number
+  poseResults: number
+  lastPoseAgeMs: number | null
   deviceClass: 'phone' | 'tablet' | 'desktop'
   orientation: 'portrait' | 'landscape'
 }
@@ -70,9 +72,8 @@ interface Props {
   /** The exercise currently being performed — used to show exercise-specific framing guidance. */
   exerciseName?: string
   /**
-   * When true the camera preview uses a landscape (16:9) aspect ratio and
-   * requests 1280x720 so horizontal floor poses (Cat-Cow, Plank, Glute Bridge,
-   * etc.) aren't cropped. Portrait 3:4 / 960x720 is used otherwise.
+   * When true the camera preview uses a landscape (16:9) aspect ratio. The
+   * camera stream itself stays 4:3 so tablets keep the uncropped sensor view.
    */
   isFloorExercise?: boolean
   /**
@@ -418,9 +419,12 @@ export default function PoseCamera({
   const lastDetectAt  = useRef(0)
   const lastDrawAt    = useRef(0)
   const lastUiUpdateAt = useRef(0)
+  const lastDebugUpdateAt = useRef(0)
   const noBodyFrames  = useRef(0)
   const lastLandmarksRef = useRef<any[] | null>(null)
   const detectionWindowRef = useRef({ startedAt: 0, count: 0, fps: 0 })
+  const poseResultCountRef = useRef(0)
+  const lastPoseResultAtRef = useRef<number | null>(null)
   // Front camera is mirrored (natural "selfie" view); rear camera is not.
   const mirroredRef   = useRef(initialFacing === 'user')
 
@@ -433,6 +437,7 @@ export default function PoseCamera({
   const isFloorExerciseRef = useRef(isFloorExercise)
   const trackingConfigRef = useRef({ landmarks: trackingLandmarks, minVisibility: trackingMinVisibility })
   const deviceInfoRef = useRef(deviceInfo)
+  const debugEnabledRef = useRef(false)
   const facingRef       = useRef<'user' | 'environment'>(initialFacing)
   useEffect(() => { activeRef.current = active }, [active])
   useEffect(() => { onPoseResultRef.current = onPoseResult }, [onPoseResult])
@@ -460,9 +465,12 @@ export default function PoseCamera({
     visibleLandmarks: 0,
     trackedLandmarks: trackingLandmarks.length,
     bodyConfidence: 0,
+    poseResults: 0,
+    lastPoseAgeMs: null,
     deviceClass: deviceInfo.deviceClass,
     orientation: deviceInfo.orientation,
   })
+  useEffect(() => { debugEnabledRef.current = debugEnabled }, [debugEnabled])
 
   useEffect(() => {
     const updateDeviceInfo = () => setDeviceInfo(getDeviceInfo())
@@ -492,8 +500,10 @@ export default function PoseCamera({
   const videoConstraints = useCallback((face: 'user' | 'environment'): MediaTrackConstraints => {
     return isMobile
       ? { facingMode: { ideal: face }, width: { ideal: 640 }, height: { ideal: 480 } }
-      : { facingMode: { ideal: face }, width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 } }
-  }, [isMobile])
+      : isTablet
+        ? { facingMode: { ideal: face }, width: { ideal: 960 }, height: { ideal: 720 }, aspectRatio: { ideal: 4 / 3 } }
+        : { facingMode: { ideal: face }, width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 } }
+  }, [isMobile, isTablet])
 
   /** Draw only the pose overlay. The real video element is visible underneath.
    *  This is much cheaper on mobile than copying the video into canvas every
@@ -547,6 +557,8 @@ export default function PoseCamera({
     const currentDeviceInfo = deviceInfoRef.current
     const detectionNow = performance.now()
     const detectionWindow = detectionWindowRef.current
+    poseResultCountRef.current += 1
+    lastPoseResultAtRef.current = detectionNow
     if (!detectionWindow.startedAt) detectionWindow.startedAt = detectionNow
     detectionWindow.count += 1
     if (detectionNow - detectionWindow.startedAt >= 1_000) {
@@ -585,6 +597,8 @@ export default function PoseCamera({
         visibleLandmarks: visibleLandmarkCount(lm, trackingConfig.landmarks, trackingConfig.minVisibility),
         trackedLandmarks: trackingConfig.landmarks.length,
         bodyConfidence,
+        poseResults: poseResultCountRef.current,
+        lastPoseAgeMs: 0,
         deviceClass: currentDeviceInfo.deviceClass,
         orientation: currentDeviceInfo.orientation,
       }
@@ -605,6 +619,8 @@ export default function PoseCamera({
         visibleLandmarks: visibleLandmarkCount(lm, trackingConfig.landmarks, trackingConfig.minVisibility),
         trackedLandmarks: trackingConfig.landmarks.length,
         bodyConfidence,
+        poseResults: poseResultCountRef.current,
+        lastPoseAgeMs: 0,
         deviceClass: currentDeviceInfo.deviceClass,
         orientation: currentDeviceInfo.orientation,
       }
@@ -636,6 +652,18 @@ export default function PoseCamera({
       lastDetectAt.current = ts
       poseRef.current.send({ image: videoRef.current })
     }
+    if (debugEnabledRef.current && ts - lastDebugUpdateAt.current > 1_000) {
+      lastDebugUpdateAt.current = ts
+      const lastPoseAt = lastPoseResultAtRef.current
+      const video = videoRef.current
+      setDiagnostics(prev => ({
+        ...prev,
+        sourceWidth: video?.videoWidth ?? prev.sourceWidth,
+        sourceHeight: video?.videoHeight ?? prev.sourceHeight,
+        poseResults: poseResultCountRef.current,
+        lastPoseAgeMs: lastPoseAt ? Math.round(performance.now() - lastPoseAt) : null,
+      }))
+    }
   }, [drawFrame, isMobile, isTablet])
 
   const stopCamera = useCallback(() => {
@@ -649,6 +677,8 @@ export default function PoseCamera({
     canvasSizeRef.current = { w: 0, h: 0 }
     lastLandmarksRef.current = null
     noBodyFrames.current = 0
+    poseResultCountRef.current = 0
+    lastPoseResultAtRef.current = null
   }, [])
 
   /**
@@ -682,10 +712,10 @@ export default function PoseCamera({
         locateFile: (f: string) => `${cdnBase}/${f}`,
       })
       pose.setOptions({
-        modelComplexity: isMobile ? 0 : 1, smoothLandmarks: true,
+        modelComplexity: isMobile || isTablet ? 0 : 1, smoothLandmarks: true,
         enableSegmentation: false,
-        minDetectionConfidence: isMobile ? 0.5 : 0.6,
-        minTrackingConfidence: isMobile ? 0.5 : 0.6,
+        minDetectionConfidence: isMobile || isTablet ? 0.5 : 0.6,
+        minTrackingConfidence: isMobile || isTablet ? 0.5 : 0.6,
       })
       pose.onResults(handlePoseResults)
       poseRef.current = pose
@@ -698,7 +728,7 @@ export default function PoseCamera({
       setErrMsg(err?.message ?? 'Unknown error')
       setStatus('error')
     }
-  }, [stopCamera, handlePoseResults, loop, videoConstraints, isMobile])
+  }, [stopCamera, handlePoseResults, loop, videoConstraints, isMobile, isTablet])
 
   /**
    * Flip between the front and rear camera. Only the MediaStream is swapped —
@@ -746,9 +776,7 @@ export default function PoseCamera({
   // Exercise-specific framing guidance takes priority over the generic status message.
   const exerciseGuidance = exerciseName ? EXERCISE_FRAMING_TIPS[exerciseName] : undefined
   const guidance = exerciseGuidance ?? FRAMING_GUIDANCE[framingStatus]
-  const adaptiveGuidanceTips = isTablet && !isFullBody
-    ? ['Try the rear camera for a wider field of view', ...guidance.tips]
-    : guidance.tips
+  const adaptiveGuidanceTips = guidance.tips
   const needsLandscape = cameraOrientation === 'landscape' && deviceInfo.orientation === 'portrait'
   const sourceAspect = sourceSize.width / sourceSize.height
   const containerAspect = containerSize.height > 0 ? containerSize.width / containerSize.height : sourceAspect
@@ -852,6 +880,7 @@ export default function PoseCamera({
             <div className="absolute right-3 top-16 z-40 rounded-md bg-black/75 px-3 py-2 font-mono text-[10px] leading-relaxed text-white/80">
               <div>{diagnostics.deviceClass} · {diagnostics.orientation}</div>
               <div>{diagnostics.sourceWidth}×{diagnostics.sourceHeight} · {diagnostics.detectionFps.toFixed(1)} fps</div>
+              <div>pose results {diagnostics.poseResults} · last pose {diagnostics.lastPoseAgeMs ?? 'n/a'}ms</div>
               <div>points {diagnostics.visibleLandmarks}/{diagnostics.trackedLandmarks} · conf {diagnostics.bodyConfidence.toFixed(2)}</div>
               <div>{framingStatus}</div>
             </div>
