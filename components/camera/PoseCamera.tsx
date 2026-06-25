@@ -62,6 +62,7 @@ export interface PoseDiagnostics {
   bodyConfidence: number
   poseResults: number
   lastPoseAgeMs: number | null
+  inputKind: 'video' | 'canvas'
   deviceClass: 'phone' | 'tablet' | 'desktop'
   orientation: 'portrait' | 'landscape'
 }
@@ -372,6 +373,8 @@ const MOBILE_DETECT_INTERVAL_MS  = 280
 const DESKTOP_DRAW_INTERVAL_MS   = 33
 const TABLET_DRAW_INTERVAL_MS    = 50
 const MOBILE_DRAW_INTERVAL_MS    = 66
+const DETECTION_INPUT_WIDTH      = 640
+const DETECTION_INPUT_HEIGHT     = 480
 // How often (ms) to push new score / feedback / framing values into React state.
 // Keeps re-renders to ~3/sec instead of on every detection tick.
 const UI_UPDATE_INTERVAL_MS = 300
@@ -386,6 +389,7 @@ export default function PoseCamera({
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef     = useRef<HTMLVideoElement>(null)
   const canvasRef    = useRef<HTMLCanvasElement>(null)
+  const detectionCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   const getDeviceInfo = (): {
     deviceClass: PoseDiagnostics['deviceClass']
@@ -467,6 +471,7 @@ export default function PoseCamera({
     bodyConfidence: 0,
     poseResults: 0,
     lastPoseAgeMs: null,
+    inputKind: isMobile || isTablet ? 'canvas' : 'video',
     deviceClass: deviceInfo.deviceClass,
     orientation: deviceInfo.orientation,
   })
@@ -503,6 +508,31 @@ export default function PoseCamera({
       : isTablet
         ? { facingMode: { ideal: face }, width: { ideal: 960 }, height: { ideal: 720 }, aspectRatio: { ideal: 4 / 3 } }
         : { facingMode: { ideal: face }, width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 } }
+  }, [isMobile, isTablet])
+
+  const getDetectionImage = useCallback((video: HTMLVideoElement): CanvasImageSource => {
+    if (!(isMobile || isTablet)) return video
+    const vw = video.videoWidth
+    const vh = video.videoHeight
+    if (!vw || !vh) return video
+
+    const canvas = detectionCanvasRef.current ?? document.createElement('canvas')
+    if (!detectionCanvasRef.current) {
+      canvas.width = DETECTION_INPUT_WIDTH
+      canvas.height = DETECTION_INPUT_HEIGHT
+      detectionCanvasRef.current = canvas
+    }
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return video
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const scale = Math.min(canvas.width / vw, canvas.height / vh)
+    const dw = vw * scale
+    const dh = vh * scale
+    const dx = (canvas.width - dw) / 2
+    const dy = (canvas.height - dh) / 2
+    ctx.drawImage(video, dx, dy, dw, dh)
+    return canvas
   }, [isMobile, isTablet])
 
   /** Draw only the pose overlay. The real video element is visible underneath.
@@ -599,6 +629,7 @@ export default function PoseCamera({
         bodyConfidence,
         poseResults: poseResultCountRef.current,
         lastPoseAgeMs: 0,
+        inputKind: currentDeviceInfo.deviceClass === 'phone' || currentDeviceInfo.deviceClass === 'tablet' ? 'canvas' : 'video',
         deviceClass: currentDeviceInfo.deviceClass,
         orientation: currentDeviceInfo.orientation,
       }
@@ -621,6 +652,7 @@ export default function PoseCamera({
         bodyConfidence,
         poseResults: poseResultCountRef.current,
         lastPoseAgeMs: 0,
+        inputKind: currentDeviceInfo.deviceClass === 'phone' || currentDeviceInfo.deviceClass === 'tablet' ? 'canvas' : 'video',
         deviceClass: currentDeviceInfo.deviceClass,
         orientation: currentDeviceInfo.orientation,
       }
@@ -650,7 +682,7 @@ export default function PoseCamera({
     if (activeRef.current && poseRef.current && videoRef.current
         && ts - lastDetectAt.current > detectInterval) {
       lastDetectAt.current = ts
-      poseRef.current.send({ image: videoRef.current })
+      poseRef.current.send({ image: getDetectionImage(videoRef.current) })
     }
     if (debugEnabledRef.current && ts - lastDebugUpdateAt.current > 1_000) {
       lastDebugUpdateAt.current = ts
@@ -662,9 +694,10 @@ export default function PoseCamera({
         sourceHeight: video?.videoHeight ?? prev.sourceHeight,
         poseResults: poseResultCountRef.current,
         lastPoseAgeMs: lastPoseAt ? Math.round(performance.now() - lastPoseAt) : null,
+        inputKind: isMobile || isTablet ? 'canvas' : 'video',
       }))
     }
-  }, [drawFrame, isMobile, isTablet])
+  }, [drawFrame, getDetectionImage, isMobile, isTablet])
 
   const stopCamera = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -879,7 +912,7 @@ export default function PoseCamera({
           {debugEnabled && (
             <div className="absolute right-3 top-16 z-40 rounded-md bg-black/75 px-3 py-2 font-mono text-[10px] leading-relaxed text-white/80">
               <div>{diagnostics.deviceClass} · {diagnostics.orientation}</div>
-              <div>{diagnostics.sourceWidth}×{diagnostics.sourceHeight} · {diagnostics.detectionFps.toFixed(1)} fps</div>
+              <div>{diagnostics.sourceWidth}×{diagnostics.sourceHeight} · input {diagnostics.inputKind} · {diagnostics.detectionFps.toFixed(1)} fps</div>
               <div>pose results {diagnostics.poseResults} · last pose {diagnostics.lastPoseAgeMs ?? 'n/a'}ms</div>
               <div>points {diagnostics.visibleLandmarks}/{diagnostics.trackedLandmarks} · conf {diagnostics.bodyConfidence.toFixed(2)}</div>
               <div>{framingStatus}</div>

@@ -18,4 +18,13 @@ describe('PoseCamera tablet front-camera stability', () => {
     assert.match(source, /lastPoseAgeMs/)
     assert.match(source, /last pose/)
   })
+
+  it('normalizes mobile and tablet pose input through a fixed-size canvas', () => {
+    assert.match(source, /DETECTION_INPUT_WIDTH\s*=\s*640/)
+    assert.match(source, /DETECTION_INPUT_HEIGHT\s*=\s*480/)
+    assert.match(source, /getDetectionImage/)
+    assert.match(source, /isMobile \|\| isTablet/)
+    assert.match(source, /poseRef\.current\.send\(\{\s*image:\s*getDetectionImage\(videoRef\.current\)/)
+    assert.match(source, /inputKind/)
+  })
 })
