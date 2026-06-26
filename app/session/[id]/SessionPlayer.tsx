@@ -61,6 +61,8 @@ interface CalibrationBlocker {
 const REP_COOLDOWN_MS      = 700    // minimum ms between two counted reps — prevents double-counting
 const MOVEMENT_TIMEOUT_MS  = 12_000    // how long to wait at baseline before nudging "movement not detected yet"
 const REP_COUNTED_DISPLAY_MS = 800    // how long the "+1" confirmation lingers before reverting
+const DEBUG_LOG_LIMIT = 2_500
+const DEBUG_POSE_LOG_INTERVAL_MS = 500
 
 // ── AI rep-counting state machine ──────────────────────────────────
 // Treats rep counting as explicit states (not a silent threshold check) so
@@ -85,6 +87,24 @@ interface AiRepStatus {
   tone: 'tracking' | 'attention' | 'success' | 'muted'
   message: string
   voice?: VoiceCue
+}
+
+type DebugEventType = 'pose_update' | 'phase_change' | 'count' | 'quality_cue' | 'blocker'
+
+interface DebugLogEntry {
+  exerciseName: string
+  timestamp: string
+  aiRepPhase: AiRepPhase
+  framingStatus: string
+  bodyConfidence: number
+  visibleLandmarks: number
+  requiredLandmarks: number
+  delta: number
+  engageThreshold: number
+  returnThreshold: number
+  repCount: number
+  qualityCue: string | null
+  eventType: DebugEventType
 }
 
 /** Single source of truth for on-screen copy + spoken prompt, keyed off the state machine. */
@@ -410,6 +430,9 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     delta: 0,
   })
   const poseDebugRef = useRef(false)
+  const debugLogRef = useRef<DebugLogEntry[]>([])
+  const lastDebugPoseLogAtRef = useRef(0)
+  const lastBlockerTitleRef = useRef<string | null>(null)
   const aiRepPhaseRef    = useRef<AiRepPhase>('waiting_for_full_body')  // mirrors aiRepPhase — the live cycle tracker
   const framingDetailRef = useRef<FramingDetail>(null)
   const repBaselineRef   = useRef<any[] | null>(null)        // "neutral" pose snapshot for this exercise
@@ -432,6 +455,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const autoAdvancedRef    = useRef(false)
   const currentExRef       = useRef<number>(resumeFrom) // mirrors currentEx for stale-closure-safe reads
   const isHoldRef          = useRef(false)              // mirrors isHold — read inside the rep-detector callback
+  const repCountRef        = useRef(0)
+  const qualityCueRef      = useRef<string | null>(null)
   const targetRepsRef      = useRef(10)                 // mirrors targetReps — read inside the rep-detector callback
   const aiRepSupportedRef  = useRef(true)               // mirrors aiRepSupported — read inside the rep-detector callback
   const startExercisingRef = useRef<() => void>(() => {})
@@ -462,6 +487,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   useEffect(() => { completedExRef.current = completedExercises }, [completedExercises])
   useEffect(() => { currentExRef.current = currentEx }, [currentEx])
   useEffect(() => { isHoldRef.current = isHold }, [isHold])
+  useEffect(() => { repCountRef.current = repCount }, [repCount])
+  useEffect(() => { qualityCueRef.current = qualityCue }, [qualityCue])
   useEffect(() => { targetRepsRef.current = targetReps }, [targetReps])
   useEffect(() => { aiRepSupportedRef.current = aiRepSupported }, [aiRepSupported])
   useEffect(() => { activeStageRef.current = activeStage }, [activeStage])
@@ -480,6 +507,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     setMovementStale(false)
     setRepFlash(false)
     setQualityCue(null)
+    qualityCueRef.current = null
+    lastBlockerTitleRef.current = null
     // Re-arm calibration for the new exercise — the user may need to reposition.
     setCalibReady(false)
     setCalibCountdown(null)
@@ -756,6 +785,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     activeStageRef.current = 'exercising'
     setActiveStage('exercising')
     autoAdvancedRef.current = false
+    repCountRef.current = 0
     setRepCount(0)
     setHoldElapsed(0)
     setPaused(false)
@@ -766,6 +796,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   function beginExercise() {
     autoAdvancedRef.current = false
     setHoldElapsed(0)
+    repCountRef.current = 0
     setRepCount(0)
     setPaused(false)   // always unpause — handles "review setup" path where paused was set true
 
@@ -791,6 +822,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       const nextIdx = curIdx + 1
       setCurrentEx(nextIdx)
       currentExRef.current = nextIdx   // keep ref synchronous for the next cue/save
+      repCountRef.current = 0
       setRepCount(0)
       setHoldElapsed(0)
       autoAdvancedRef.current = false
@@ -833,7 +865,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       const nextIdx = curIdx + 1
       setCurrentEx(nextIdx)
       currentExRef.current = nextIdx   // keep ref synchronous for the next cue
-      setRepCount(0); setHoldElapsed(0); autoAdvancedRef.current = false
+      repCountRef.current = 0; setRepCount(0); setHoldElapsed(0); autoAdvancedRef.current = false
       setShowNameOverlay(true)
       setPaused(false)
       primeActiveStage()
@@ -934,6 +966,43 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     if (movementStaleTimerRef.current) clearTimeout(movementStaleTimerRef.current)
   }
 
+  const recordDebugEvent = useCallback((eventType: DebugEventType, data: Partial<DebugLogEntry> = {}) => {
+    const currentExerciseName = exercisesRef.current[currentExRef.current]?.exercise?.name ?? exercise?.name ?? ''
+    const entry: DebugLogEntry = {
+      exerciseName: data.exerciseName ?? currentExerciseName,
+      timestamp: data.timestamp ?? new Date().toISOString(),
+      aiRepPhase: data.aiRepPhase ?? aiRepPhaseRef.current,
+      framingStatus: data.framingStatus ?? framingDetailRef.current ?? 'unknown',
+      bodyConfidence: data.bodyConfidence ?? repDiagnostics.confidence,
+      visibleLandmarks: data.visibleLandmarks ?? repDiagnostics.visible,
+      requiredLandmarks: data.requiredLandmarks ?? repDiagnostics.required,
+      delta: data.delta ?? repDiagnostics.delta,
+      engageThreshold: data.engageThreshold ?? trackingProfile.engageThreshold,
+      returnThreshold: data.returnThreshold ?? trackingProfile.returnThreshold,
+      repCount: data.repCount ?? repCountRef.current,
+      qualityCue: data.qualityCue ?? qualityCueRef.current,
+      eventType,
+    }
+    debugLogRef.current.push(entry)
+    if (debugLogRef.current.length > DEBUG_LOG_LIMIT) {
+      debugLogRef.current.splice(0, debugLogRef.current.length - DEBUG_LOG_LIMIT)
+    }
+  }, [exercise?.name, repDiagnostics, trackingProfile.engageThreshold, trackingProfile.returnThreshold])
+
+  function downloadDebugLog() {
+    const payload = JSON.stringify(debugLogRef.current, null, 2)
+    const blob = new Blob([payload], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const safeName = (exercise?.name ?? 'session').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    link.href = url
+    link.download = `forma-debug-${safeName || 'session'}-${Date.now()}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   /** Briefly flash the "Rep counted" toast — always shown, regardless of whether voice announces it. */
   function flashRep() {
     setRepFlash(true)
@@ -945,6 +1014,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   function setAiPhase(phase: AiRepPhase, detail: FramingDetail = framingDetailRef.current, stale = movementStale) {
     aiRepPhaseRef.current = phase
     setAiRepPhase(phase)
+    recordDebugEvent('phase_change', { aiRepPhase: phase, framingStatus: detail ?? 'tracked' })
     const status = describeAiRepStatus(phase, detail, stale)
     if (status.voice) voiceCoachRef.current.speak(status.voice, voiceEnabledRef.current)
   }
@@ -984,6 +1054,16 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     const now = Date.now()
 
     if (!confident) {
+      if (now - lastDebugPoseLogAtRef.current > DEBUG_POSE_LOG_INTERVAL_MS) {
+        lastDebugPoseLogAtRef.current = now
+        recordDebugEvent('pose_update', {
+          framingStatus: result.framingStatus,
+          bodyConfidence: confidence,
+          visibleLandmarks: visibleCount,
+          requiredLandmarks: requiredCount,
+          delta: 0,
+        })
+      }
       if (poseDebugRef.current) {
         setRepDiagnostics({ usable: false, visible: visibleCount, required: requiredCount, confidence, delta: 0 })
       }
@@ -1021,12 +1101,34 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       setFramingDetail(null)
     }
     const nextQualityCue = detectQualityCue(exercisesRef.current[currentExRef.current]?.exercise?.name, lm)
-    setQualityCue(prev => (prev === nextQualityCue ? prev : nextQualityCue))
+    if (qualityCueRef.current !== nextQualityCue) {
+      qualityCueRef.current = nextQualityCue
+      setQualityCue(nextQualityCue)
+      if (nextQualityCue) {
+        recordDebugEvent('quality_cue', {
+          framingStatus: result.framingStatus,
+          bodyConfidence: confidence,
+          visibleLandmarks: visibleCount,
+          requiredLandmarks: requiredCount,
+          qualityCue: nextQualityCue,
+        })
+      }
+    }
 
     // Hold the "Rep counted ✓" confirmation on screen for a beat before resuming detection.
     if (aiRepPhaseRef.current === 'rep_counted') return
 
     if (!repBaselineRef.current) {
+      if (now - lastDebugPoseLogAtRef.current > DEBUG_POSE_LOG_INTERVAL_MS) {
+        lastDebugPoseLogAtRef.current = now
+        recordDebugEvent('pose_update', {
+          framingStatus: result.framingStatus,
+          bodyConfidence: confidence,
+          visibleLandmarks: visibleCount,
+          requiredLandmarks: requiredCount,
+          delta: 0,
+        })
+      }
       // First confident frame (or first since losing/regaining tracking) — anchor "neutral".
       repBaselineRef.current = lm
       if (aiRepPhaseRef.current !== 'ready_for_baseline') setAiPhase('ready_for_baseline', null, false)
@@ -1048,6 +1150,16 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     if (poseDebugRef.current) {
       setRepDiagnostics({ usable: true, visible: visibleCount, required: requiredCount, confidence, delta })
     }
+    if (now - lastDebugPoseLogAtRef.current > DEBUG_POSE_LOG_INTERVAL_MS) {
+      lastDebugPoseLogAtRef.current = now
+      recordDebugEvent('pose_update', {
+        framingStatus: result.framingStatus,
+        bodyConfidence: confidence,
+        visibleLandmarks: visibleCount,
+        requiredLandmarks: requiredCount,
+        delta,
+      })
+    }
 
     if (aiRepPhaseRef.current === 'waiting_for_engaged_phase') {
       if (delta > trackingProfile.engageThreshold) {
@@ -1067,7 +1179,17 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       if (delta < trackingProfile.returnThreshold && now - repCooldownRef.current > REP_COOLDOWN_MS) {
         repCooldownRef.current = now
         repBaselineRef.current = lm   // re-anchor neutral to the current "returned" pose (corrects for drift)
-        setRepCount(r => (r < targetRepsRef.current ? r + 1 : r))
+        const nextRep = Math.min(targetRepsRef.current, repCountRef.current + 1)
+        repCountRef.current = nextRep
+        setRepCount(nextRep)
+        recordDebugEvent('count', {
+          framingStatus: result.framingStatus,
+          bodyConfidence: confidence,
+          visibleLandmarks: visibleCount,
+          requiredLandmarks: requiredCount,
+          delta,
+          repCount: nextRep,
+        })
         flashRep()
         engagedSinceRef.current = now
         if (movementStale) setMovementStale(false)
@@ -1092,13 +1214,21 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   }
 
   function handleRep() {
-    if (!isHold && repCount < targetReps) setRepCount(r => r + 1)
+    if (!isHold && repCountRef.current < targetReps) {
+      const nextRep = Math.min(targetReps, repCountRef.current + 1)
+      repCountRef.current = nextRep
+      setRepCount(nextRep)
+      recordDebugEvent('count', { repCount: nextRep })
+    }
   }
 
   /** +/- correction control — available to everyone as a fallback/fix for AI (mis)counts. */
   function adjustRep(delta: number) {
     if (isHold) return
-    setRepCount(r => Math.max(0, Math.min(targetReps, r + delta)))
+    const nextRep = Math.max(0, Math.min(targetReps, repCountRef.current + delta))
+    repCountRef.current = nextRep
+    setRepCount(nextRep)
+    recordDebugEvent('count', { repCount: nextRep })
   }
 
   // Stable identity across renders — PoseCamera mirrors this in a ref, so
@@ -1147,6 +1277,16 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         landmarksReady,
       })
       setCalibBlocker(blocker)
+      if (lastBlockerTitleRef.current !== blocker.title) {
+        lastBlockerTitleRef.current = blocker.title
+        recordDebugEvent('blocker', {
+          framingStatus: result.framingStatus,
+          bodyConfidence: confidence,
+          visibleLandmarks: visibleCount,
+          requiredLandmarks: requiredCount,
+          delta: 0,
+        })
+      }
       voiceCoachRef.current.speak(blocker.voice, voiceEnabledRef.current)
       setCalibReady(prev => (prev === ready ? prev : ready))
       if (ready) {
@@ -1172,8 +1312,25 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // reliably detect a rep cycle.
     if (isPro && !isHoldRef.current && aiRepSupportedRef.current && activeStageRef.current === 'exercising') {
       processAutoRepRef.current(result)
+    } else if (isPro && activeStageRef.current === 'exercising') {
+      const lm = result.landmarks ?? []
+      const visibleCount = trackingProfile.landmarks.filter(
+        index => (lm[index]?.visibility ?? 0) >= trackingProfile.minVisibility,
+      ).length
+      const requiredCount = requiredVisibleLandmarks(trackingProfile)
+      const now = Date.now()
+      if (now - lastDebugPoseLogAtRef.current > DEBUG_POSE_LOG_INTERVAL_MS) {
+        lastDebugPoseLogAtRef.current = now
+        recordDebugEvent('pose_update', {
+          framingStatus: result.framingStatus,
+          bodyConfidence: result.bodyConfidence ?? 0,
+          visibleLandmarks: visibleCount,
+          requiredLandmarks: requiredCount,
+          delta: 0,
+        })
+      }
     }
-  }, [isPro, trackingProfile])
+  }, [isPro, recordDebugEvent, trackingProfile])
 
   const avgScore = calcAvgScore()
   // Single source of truth for the AI rep-counting chip/message/voice — keeps
@@ -1500,7 +1657,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         <div className="flex gap-3 w-full max-w-xs">
           <button onClick={() => {
             if (transitionTimerRef.current) clearInterval(transitionTimerRef.current)
-            setRepCount(0); setHoldElapsed(0); autoAdvancedRef.current = false
+            repCountRef.current = 0; setRepCount(0); setHoldElapsed(0); autoAdvancedRef.current = false
             primeActiveStage(); setPhase('active')
           }} className="flex-1 py-3 rounded-full bg-white/10 text-white/70 text-sm font-medium active:bg-white/20">
             Repeat
@@ -1509,7 +1666,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <button onClick={() => {
               if (transitionTimerRef.current) clearInterval(transitionTimerRef.current)
               const nextIdx = currentEx + 1
-              setCurrentEx(nextIdx); setRepCount(0); setHoldElapsed(0); autoAdvancedRef.current = false
+              setCurrentEx(nextIdx); repCountRef.current = 0; setRepCount(0); setHoldElapsed(0); autoAdvancedRef.current = false
               setIntroPaused(true)    // user explicitly chose to review — pause auto-countdown
               setIntroIsReview(false) // coming from transition, not mid-exercise (no "Resume" wording needed)
               setPhase('exercise-intro')
@@ -1705,6 +1862,12 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <div>{repDiagnostics.usable ? 'usable' : 'blocked'} · points {repDiagnostics.visible}/{repDiagnostics.required}</div>
             <div>conf {repDiagnostics.confidence.toFixed(2)} · delta {repDiagnostics.delta.toFixed(3)}</div>
             <div>engage {trackingProfile.engageThreshold.toFixed(3)} · return {trackingProfile.returnThreshold.toFixed(3)}</div>
+            <button
+              onClick={downloadDebugLog}
+              className="mt-2 rounded bg-white/15 px-2 py-1 font-sans text-[10px] font-semibold text-white/85 active:bg-white/25"
+            >
+              Download debug log
+            </button>
           </div>
         )}
 
@@ -1810,6 +1973,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
                   {qualityCue && (
                     <p className="px-1 text-center text-[13px] leading-snug text-sage-light" aria-live="polite">
                       {qualityCue}
+                    </p>
+                  )}
+                  {movementStale && (
+                    <p className="px-1 text-center text-[12px] leading-snug text-white/55" aria-live="polite">
+                      AI stuck? Use + to count manually.
                     </p>
                   )}
                 </div>
@@ -2019,11 +2187,16 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <p role="status" aria-live="polite" className="px-1 text-[13px] leading-snug text-white/55">
               {aiStatus.message}
             </p>
-            {qualityCue && (
-              <p className="px-1 text-[13px] leading-snug text-sage-light" aria-live="polite">
-                {qualityCue}
-              </p>
-            )}
+                    {qualityCue && (
+                      <p className="px-1 text-[13px] leading-snug text-sage-light" aria-live="polite">
+                        {qualityCue}
+                      </p>
+                    )}
+                    {movementStale && (
+                      <p className="px-1 text-[12px] leading-snug text-white/55" aria-live="polite">
+                        AI stuck? Use + to count manually.
+                      </p>
+                    )}
             <div className="grid grid-cols-4 gap-1" aria-label="Rep cycle">
               {(['Start', 'Move', 'Return', 'Count'] as const).map(stage => (
                 <div

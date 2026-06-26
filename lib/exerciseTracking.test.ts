@@ -124,6 +124,13 @@ describe('replacement exercise tracking profiles', () => {
     }
   })
 
+  it('keeps Glute Bridge as the P0 auto-count sample and sends unstable P0 moves to manual fallback', () => {
+    assert.equal(getExerciseTrackingProfile('Glute Bridge', true, 'reps').mode, 'auto')
+    for (const exerciseName of ['Chest Lift', 'Bent Knee Opening', 'Arm Arcs', 'Dead Bug', 'Side Kick']) {
+      assert.equal(getExerciseTrackingProfile(exerciseName, true, 'reps').mode, 'manual')
+    }
+  })
+
   it('does not require portrait orientation for seated front-view exercises', () => {
     for (const exerciseName of ['Spine Twist', 'Saw']) {
       const profile = getExerciseTrackingProfile(exerciseName, true, 'reps')

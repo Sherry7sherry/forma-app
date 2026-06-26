@@ -61,4 +61,36 @@ describe('session rep feedback copy', () => {
     assert.match(source, /You can start anyway if you want/)
     assert.doesNotMatch(source, /text:\s*`Only \$\{visibleCount\} of \$\{requiredCount\}/)
   })
+
+  it('exports debug logs with pose, phase, count, quality, and blocker events', () => {
+    assert.match(source, /type DebugEventType = 'pose_update' \| 'phase_change' \| 'count' \| 'quality_cue' \| 'blocker'/)
+    assert.match(source, /interface DebugLogEntry/)
+    for (const field of [
+      'exerciseName',
+      'timestamp',
+      'aiRepPhase',
+      'framingStatus',
+      'bodyConfidence',
+      'visibleLandmarks',
+      'requiredLandmarks',
+      'delta',
+      'engageThreshold',
+      'returnThreshold',
+      'repCount',
+      'qualityCue',
+      'eventType',
+    ]) {
+      assert.match(source, new RegExp(`${field}:`))
+    }
+    assert.match(source, /debugLogRef/)
+    assert.match(source, /recordDebugEvent/)
+    assert.match(source, /Download debug log/)
+    assert.match(source, /JSON\.stringify/)
+    assert.match(source, /new Blob/)
+  })
+
+  it('keeps manual fallback visible when AI counting stalls', () => {
+    assert.match(source, /AI stuck\? Use \+ to count manually\./)
+    assert.match(source, /Manual count available/)
+  })
 })
