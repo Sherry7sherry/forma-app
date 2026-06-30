@@ -62,40 +62,40 @@ export default async function HomePage() {
       </header>
 
       <section className="px-5" aria-labelledby="todays-body-heading">
-        <div className="relative overflow-hidden rounded-4xl bg-charcoal px-5 py-5 shadow-[0_14px_36px_rgba(44,44,44,.18)]">
+        <div className="relative overflow-hidden rounded-4xl border border-white/10 bg-gradient-to-b from-[#3F5F54] to-[#527368] px-5 py-5 shadow-[0_14px_36px_rgba(63,95,84,.22)]">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sage-light">Personal Body Mirror</p>
-              <h2 id="todays-body-heading" className="font-serif text-2xl text-white">Today’s Body</h2>
+              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#DCE8E1]">Personal Body Mirror</p>
+              <h2 id="todays-body-heading" className="font-serif text-2xl text-cream">Today’s Body</h2>
             </div>
             {bodyMirror && (
               <span className={`rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide
-                ${bodyMirror.status === 'safety_hold' ? 'bg-rose text-white' : 'bg-white/10 text-white/75'}`}>
+                ${bodyMirror.status === 'safety_hold' ? 'bg-rose text-white' : 'bg-white/10 text-cream'}`}>
                 {statusLabel(bodyMirror.status)}
               </span>
             )}
           </div>
 
           {!bodyMirror ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="rounded-2xl border border-white/15 bg-white/5 p-4">
               <div className="flex gap-3">
-                <RefreshCw size={19} className="mt-0.5 flex-shrink-0 text-sage-light" aria-hidden="true" />
+                <RefreshCw size={19} className="mt-0.5 flex-shrink-0 text-[#DCE8E1]" aria-hidden="true" />
                 <div>
-                  <p className="text-sm font-semibold text-white">Body data is unavailable</p>
-                  <p className="mt-1 text-xs leading-relaxed text-white/60">We could not load your evidence. Your mirror has not been replaced with an empty state.</p>
+                  <p className="text-sm font-semibold text-cream">Body data is unavailable</p>
+                  <p className="mt-1 text-xs leading-relaxed text-[#DCE8E1]">We could not load your evidence. Your mirror has not been replaced with an empty state.</p>
                 </div>
               </div>
             </div>
           ) : (
             <>
               <BodyMirrorDimensions result={bodyMirror} compact />
-              <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
-                <div className="flex min-w-0 items-center gap-2 text-xs text-white/60">
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/15 pt-4">
+                <div className="flex min-w-0 items-center gap-2 text-xs text-[#DCE8E1]">
                   <Clock3 size={14} aria-hidden="true" />
                   <span className="truncate">{bodyMirror.freshness.label}</span>
                 </div>
                 {bodyMirror.freshness.asOf && (
-                  <time className="flex-shrink-0 text-[11px] text-white/45" dateTime={bodyMirror.freshness.asOf}>
+                  <time className="flex-shrink-0 text-[11px] text-[#DCE8E1]" dateTime={bodyMirror.freshness.asOf}>
                     {formatEvidenceDate(bodyMirror.freshness.asOf)}
                   </time>
                 )}
