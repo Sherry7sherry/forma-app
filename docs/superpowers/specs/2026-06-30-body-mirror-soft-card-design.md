@@ -1,23 +1,24 @@
-# Body Mirror Soft Card Design
+# Body Mirror Deep Sage Card Design
 
 ## Goal
 
-Replace the near-black Today’s Body card with a lighter treatment that feels native to Forma’s cream-and-sage interface. The card must still read as the primary Home element without looking like a separate monitoring dashboard.
+Replace the near-black Today’s Body card with a visibly green, ink-rich sage treatment. The card should remain Home’s strongest visual anchor while feeling botanical and native to Forma rather than like a black monitoring dashboard.
 
 ## Visual direction
 
-Use a misty sage surface with a quiet vertical gradient from `#EDF3EF` to `#E3ECE7`. Keep the existing Lora/Inter typography, rounded shape, information order, icons, and status semantics.
+Use a deep sage surface with a restrained vertical gradient from `#3F5F54` to `#527368`. Keep the existing Lora/Inter typography, rounded shape, information order, icons, and status semantics.
 
-- Card: pale sage gradient, subtle `sage/25` border, softer low-contrast shadow.
-- Heading and body: charcoal and charcoal-mid instead of white.
-- Eyebrow: sage-dark.
-- Icon tiles: translucent white with sage-dark icons.
-- Dividers: muted sage rather than white.
-- Default status chip: white or cream with sage-dark text.
+- Card: ink-rich sage gradient, subtle light edge, and a soft green-toned shadow.
+- Heading and row titles: warm cream rather than pure white.
+- Eyebrow and supporting text: pale sage-white `#DCE8E1` for readable small text.
+- Icon tiles: translucent warm white with cream icons.
+- Dividers: quiet translucent warm white.
+- Default top-right status chip: translucent warm white with cream text.
+- Dimension state chips: keep their existing semantic colors; the no-data chip remains warm cream with muted sage text.
 - Safety status: retain rose styling so it remains unmistakable.
-- Freshness metadata: muted charcoal with adequate contrast.
+- Freshness metadata: pale sage-white with adequate contrast.
 
-The signature element is the fog-like sage gradient: it should feel calm and bodily, not glossy or decorative.
+The signature element is the clearly green dark surface: it should feel confident, calm, and botanical, never black, blue, glossy, or overly saturated.
 
 ## Scope
 
@@ -31,5 +32,5 @@ Preserve the current mobile-first layout, tap targets, semantic structure, and f
 
 - Run the existing tests, lint, typecheck, and production build.
 - Inspect Home at mobile width in the no-data state.
-- Confirm the card remains visually primary while blending with the cream page.
+- Confirm the card is Home’s strongest visual anchor while remaining visibly sage rather than near-black.
 - Confirm rose safety states and all compact dimension status chips remain distinguishable.
