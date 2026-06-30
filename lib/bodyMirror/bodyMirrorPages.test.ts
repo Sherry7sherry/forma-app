@@ -18,15 +18,17 @@ describe('Body Mirror screen contracts', () => {
     assert.match(home(), /BodyCheckInSheet/)
   })
 
-  it('uses the approved mist-sage treatment for the compact Home mirror', () => {
+  it('uses the approved ink-sage treatment for the compact Home mirror', () => {
     const homeSource = home()
     const dimensionSource = dimensions()
 
-    assert.match(homeSource, /from-\[#EDF3EF\].*to-\[#E3ECE7\]/s)
+    assert.match(homeSource, /from-\[#3F5F54\].*to-\[#527368\]/s)
     assert.doesNotMatch(homeSource, /rounded-4xl bg-charcoal/)
-    assert.match(homeSource, /text-charcoal/)
-    assert.match(dimensionSource, /divide-sage\/20/)
-    assert.match(dimensionSource, /bg-white\/65 text-sage-dark/)
+    assert.doesNotMatch(homeSource, /from-\[#EDF3EF\]/)
+    assert.match(homeSource, /text-\[#DCE8E1\]/)
+    assert.match(dimensionSource, /divide-white\/15/)
+    assert.match(dimensionSource, /bg-white\/10 text-cream/)
+    assert.match(dimensionSource, /COMPACT_STATE_STYLES/)
   })
 
   it('makes the three body dimensions primary and removes average form score from Progress', () => {
