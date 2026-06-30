@@ -113,6 +113,69 @@ create table if not exists public.session_records (
   created_at            timestamptz not null default now()
 );
 
+create unique index if not exists session_records_id_user_key
+  on public.session_records (id, user_id);
+
+create table if not exists public.body_check_ins (
+  id                 uuid default uuid_generate_v4() primary key,
+  user_id            uuid references public.user_profiles(id) on delete cascade not null,
+  context            text not null check (context in ('baseline','daily','pre_session','post_session')),
+  comfort            smallint not null check (comfort between 1 and 5),
+  focus_areas        text[] not null default '{}',
+  safety_signals     text[] not null default '{}'
+    check (safety_signals <@ ARRAY['sharp_pain','numbness','radiating_pain','dizziness','chest_pain','shortness_of_breath','sudden_weakness']::text[]),
+  notes              text,
+  session_record_id  uuid,
+  recorded_at        timestamptz not null default now(),
+  created_at         timestamptz not null default now(),
+  unique (id, user_id),
+  foreign key (session_record_id, user_id)
+    references public.session_records (id, user_id) on delete set null (session_record_id)
+);
+
+create table if not exists public.movement_assessments (
+  id                  uuid default uuid_generate_v4() primary key,
+  user_id             uuid references public.user_profiles(id) on delete cascade not null,
+  kind                text not null check (kind in ('baseline','reassessment','daily')),
+  capture_mode        text not null check (capture_mode in ('camera','self_report')),
+  status              text not null default 'in_progress'
+    check (status in ('in_progress','completed','partial','camera_unavailable','low_confidence')),
+  overall_confidence  numeric(4,3) check (overall_confidence between 0 and 1),
+  body_check_in_id    uuid,
+  session_record_id   uuid,
+  started_at          timestamptz not null default now(),
+  completed_at        timestamptz,
+  created_at          timestamptz not null default now(),
+  unique (id, user_id),
+  foreign key (body_check_in_id, user_id)
+    references public.body_check_ins (id, user_id) on delete set null (body_check_in_id),
+  foreign key (session_record_id, user_id)
+    references public.session_records (id, user_id) on delete set null (session_record_id)
+);
+
+create table if not exists public.movement_observations (
+  id                uuid default uuid_generate_v4() primary key,
+  assessment_id     uuid not null,
+  user_id           uuid references public.user_profiles(id) on delete cascade not null,
+  movement_key      text not null
+    check (movement_key in ('side_arm_raise','standing_roll_down','seated_trunk_rotation')),
+  dimension         text not null check (dimension in ('mobility','control')),
+  side              text not null default 'center'
+    check (side in ('left','right','center','bilateral')),
+  metric_key        text not null,
+  value             numeric not null,
+  unit              text not null,
+  better_direction  text not null default 'higher' check (better_direction in ('higher','lower')),
+  change_threshold  numeric not null default 0 check (change_threshold >= 0),
+  confidence        numeric(4,3) not null check (confidence between 0 and 1),
+  observed_at       timestamptz not null default now(),
+  metadata          jsonb not null default '{}',
+  created_at        timestamptz not null default now(),
+  foreign key (assessment_id, user_id)
+    references public.movement_assessments (id, user_id) on delete cascade,
+  unique (assessment_id, movement_key, dimension, side, metric_key)
+);
+
 create table if not exists public.stripe_events (
   id           text primary key,
   type         text not null,
@@ -146,6 +209,9 @@ create unique index if not exists session_plans_name_key on public.session_plans
 alter table public.user_profiles          enable row level security;
 alter table public.user_onboarding        enable row level security;
 alter table public.session_records        enable row level security;
+alter table public.body_check_ins         enable row level security;
+alter table public.movement_assessments   enable row level security;
+alter table public.movement_observations  enable row level security;
 alter table public.exercises              enable row level security;
 alter table public.session_plans          enable row level security;
 alter table public.session_plan_exercises enable row level security;
@@ -166,6 +232,24 @@ create policy "Users can manage own onboarding"
 drop policy if exists "Users can manage own session records" on public.session_records;
 create policy "Users can manage own session records"
   on public.session_records for all using (auth.uid() = user_id);
+
+drop policy if exists "Users can manage own body check-ins" on public.body_check_ins;
+create policy "Users can manage own body check-ins"
+  on public.body_check_ins for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can manage own movement assessments" on public.movement_assessments;
+create policy "Users can manage own movement assessments"
+  on public.movement_assessments for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can manage own movement observations" on public.movement_observations;
+create policy "Users can manage own movement observations"
+  on public.movement_observations for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 drop policy if exists "Anyone can read exercises" on public.exercises;
 create policy "Anyone can read exercises"

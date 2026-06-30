@@ -22,6 +22,17 @@
     "lib/poseTracking.test.ts",
     "lib/exerciseTracking.ts",
     "lib/exerciseTracking.test.ts",
-    "lib/sessionPlansSeed.test.ts"
+    "lib/sessionPlansSeed.test.ts",
+    "lib/bodyMirror/types.ts",
+    "lib/bodyMirror/deriveBodyMirror.ts",
+    "lib/bodyMirror/loadBodyMirror.ts",
+    "lib/bodyMirror/checkIn.ts",
+    "lib/bodyMirror/viewModels.ts",
+    "lib/bodyMirror/index.ts",
+    "lib/bodyMirror/deriveBodyMirror.test.ts",
+    "lib/bodyMirror/loadBodyMirror.test.ts",
+    "lib/bodyMirror/checkIn.test.ts",
+    "lib/bodyMirror/bodyMirrorPages.test.ts",
+    "lib/bodyMirror/bodyMirrorMigration.test.ts"
   ]
 }
