@@ -4,7 +4,7 @@ import Link from 'next/link'
 import BodyCheckInSheet from '@/components/body-mirror/BodyCheckInSheet'
 import BodyMirrorDimensions from '@/components/body-mirror/BodyMirrorDimensions'
 import { UpgradeButton } from '@/components/billing/BillingButton'
-import { loadBodyMirrorForUser } from '@/lib/bodyMirror'
+import { formatSafetySignals, loadBodyMirrorForUser, type SafetySignal } from '@/lib/bodyMirror'
 import { createClient } from '@/lib/supabase/server'
 import { getDayName, getGreeting, startOfWeekISO } from '@/lib/utils'
 
@@ -129,6 +129,7 @@ export default async function HomePage() {
             <RecommendationActions
               userId={userId}
               mode={bodyMirror.recommendation.mode}
+              safetySignals={bodyMirror.safety.signals}
               quickPlan={quickPlan as SessionPlanSummary | null}
               fullPlan={fullPlan}
             />
@@ -161,13 +162,26 @@ export default async function HomePage() {
   )
 }
 
-function RecommendationActions({ userId, mode, quickPlan, fullPlan }: {
+function RecommendationActions({ userId, mode, safetySignals, quickPlan, fullPlan }: {
   userId: string
   mode: 'baseline' | 'check_in' | 'quick' | 'full' | 'reassess' | 'pause'
+  safetySignals: SafetySignal[]
   quickPlan: SessionPlanSummary | null
   fullPlan: SessionPlanSummary | null
 }) {
-  if (mode === 'pause') return null
+  if (mode === 'pause') {
+    return (
+      <div className="mt-5 grid gap-3">
+        <div className="rounded-2xl border border-rose/25 bg-white/70 px-4 py-3 text-sm text-charcoal-mid">
+          <span className="font-semibold text-rose-dark">Triggered by:</span>{' '}
+          {formatSafetySignals(safetySignals)}
+        </div>
+        <BodyCheckInSheet userId={userId}
+          label="Retake safety check-in"
+          className="btn-primary w-full" />
+      </div>
+    )
+  }
   if (mode === 'check_in') {
     return (
       <div className="mt-5">

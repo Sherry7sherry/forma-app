@@ -197,6 +197,36 @@ describe('deriveBodyMirror', () => {
     assert.deepEqual(result.safety.signals, ['radiating_pain', 'numbness'])
   })
 
+  it('clears an older safety hold when the newest check-in has no stop signals', () => {
+    const baseline = completeBaseline()
+    const checkIns: BodyMirrorEvidence['checkIns'] = [
+      {
+        id: 'safe-recheck',
+        context: 'daily',
+        comfort: 3,
+        focusAreas: [],
+        safetySignals: [],
+        recordedAt: '2026-06-29T07:55:00.000Z',
+      },
+      {
+        id: 'accidental-stop-signal',
+        context: 'baseline',
+        comfort: 3,
+        focusAreas: [],
+        safetySignals: ['sharp_pain'],
+        recordedAt: '2026-06-29T07:45:00.000Z',
+      },
+    ]
+
+    const result = deriveBodyMirror(evidence({ ...baseline, checkIns }), { now: NOW })
+
+    assert.notEqual(result.status, 'safety_hold')
+    assert.equal(result.safety.shouldPause, false)
+    assert.deepEqual(result.safety.signals, [])
+    assert.equal(checkIns.length, 2)
+    assert.deepEqual(checkIns[1].safetySignals, ['sharp_pain'])
+  })
+
   it('selects a gentler quick session after a user feels worse post-session', () => {
     const baseline = completeBaseline()
     const result = deriveBodyMirror(evidence({

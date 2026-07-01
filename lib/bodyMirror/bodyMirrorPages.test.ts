@@ -26,6 +26,16 @@ describe('Body Mirror screen contracts', () => {
     assert.match(source, /mode === 'check_in'/)
   })
 
+  it('explains a safety hold and offers a self check-in to clear an accidental signal', () => {
+    const source = home()
+
+    assert.match(source, /formatSafetySignals/)
+    assert.match(source, /bodyMirror\.safety\.signals/)
+    assert.match(source, /mode === 'pause'/)
+    assert.match(source, /Triggered by:/)
+    assert.match(source, /Retake safety check-in/)
+  })
+
   it('uses the approved ink-sage treatment for the compact Home mirror', () => {
     const homeSource = home()
     const dimensionSource = dimensions()
