@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { startOfWeekISO } from '@/lib/utils'
+import { deriveSessionBodyPolicy, loadBodyMirrorForUser } from '@/lib/bodyMirror'
 import SessionPlayer from './SessionPlayer'
 
 interface Props { params: Promise<{ id: string }> }
@@ -15,7 +16,7 @@ export default async function SessionPage({ params }: Props) {
   // (Monday) — matching the "resets Monday" copy shown to users.
   const weekStart = startOfWeekISO()
 
-  const [{ data: plan }, { data: profile }, { count: sessionsThisWeek }, { data: partialRecords }] = await Promise.all([
+  const [{ data: plan }, { data: profile }, { count: sessionsThisWeek }, { data: partialRecords }, bodyMirrorLoad] = await Promise.all([
     supabase.from('session_plans').select(`
       *,
       exercises:session_plan_exercises(
@@ -44,6 +45,8 @@ export default async function SessionPage({ params }: Props) {
       .eq('is_partial', true)
       .order('completed_at', { ascending: false })
       .limit(1),
+
+    loadBodyMirrorForUser(supabase, user.id),
   ])
 
   if (!plan) notFound()
@@ -74,6 +77,9 @@ export default async function SessionPage({ params }: Props) {
     totalExercises: partial.total_exercises ?? 0,
     savedAt: partial.completed_at ?? new Date().toISOString(),
   } : null
+  const bodyPolicy = bodyMirrorLoad.result
+    ? deriveSessionBodyPolicy(bodyMirrorLoad.result)
+    : 'prompt_assessment'
 
   return (
     <SessionPlayer
@@ -83,6 +89,7 @@ export default async function SessionPage({ params }: Props) {
       voiceCoachingEnabled={profile?.voice_coaching_enabled ?? true}
       sessionsThisWeek={sessionsThisWeek ?? 0}
       partialSession={partialSession}
+      bodyPolicy={bodyPolicy}
     />
   )
 }

@@ -42,3 +42,32 @@ The side-by-side card comparison normalizes both artifacts to 472 × 357 px. It 
 - P3: none required for release.
 
 final result: passed
+
+---
+
+# Body Assessment Flow Design QA
+
+- Browser: Chrome
+- Routes reviewed through temporary local-only QA harnesses: assessment intro, pre-assessment self check-in, Session assessment prompt, and explicit skip into the existing Session pre-start screen
+- Visual language: existing Forma cream canvas, serif display typography, sage actions, rounded cards, and dark Session shell
+
+**Findings**
+
+- No actionable P0, P1, or P2 visual issue remains.
+- The assessment intro keeps a narrow readable column, clear two-minute expectation, camera fallback, and non-diagnostic safety boundary above the primary action.
+- The self check-in preserves large tap targets, readable comfort anchors, and a distinct rose safety section without presenting a medical diagnosis.
+- The Session prompt is visually consistent with the existing dark training shell. “Assess first” is primary; “Continue without assessment” is present but deliberately secondary.
+- Chrome interaction verification confirmed that skipping the prompt reaches the existing Session pre-start screen without creating a session record at the prompt step.
+- Browser QA exposed invalid existing paragraph/form nesting around the free-tier upgrade action. The wrapper was changed to valid block markup and covered by a regression test.
+- Temporary QA routes and proxy allowances were removed after inspection and were not committed.
+
+**Implementation checklist**
+
+- [x] Existing Forma typography, colors, radii, and component language retained
+- [x] Assessment and daily 15-second check-in are visually and behaviorally distinct
+- [x] Camera fallback and safety copy are visible before movement capture
+- [x] Missing baseline prompts assessment but allows an explicit skip
+- [x] Current safety signals hard-block Session start in the unified policy
+- [x] No actionable P0/P1/P2 findings remain
+
+final result: passed

@@ -168,17 +168,25 @@ function RecommendationActions({ userId, mode, quickPlan, fullPlan }: {
   fullPlan: SessionPlanSummary | null
 }) {
   if (mode === 'pause') return null
-  if (mode === 'check_in' || mode === 'baseline' || mode === 'reassess') {
+  if (mode === 'check_in') {
     return (
       <div className="mt-5">
         <BodyCheckInSheet userId={userId}
-          label={mode === 'check_in' ? 'Start 15-second check-in' : 'Add how you feel now'}
+          label="Start 15-second check-in"
           className="btn-primary w-full" />
-        {(mode === 'baseline' || mode === 'reassess') && (
-          <div className="mt-3 rounded-2xl bg-cream-dark px-4 py-3 text-xs leading-relaxed text-charcoal-mid">
-            The movement baseline uses a side arm raise, standing roll down, and seated trunk rotation — about 2 minutes, no mat.
-          </div>
-        )}
+      </div>
+    )
+  }
+
+  if (mode === 'baseline' || mode === 'reassess') {
+    return (
+      <div className="mt-5">
+        <Link href="/assessment" className="btn-primary w-full">
+          Start 2-minute assessment <ArrowRight size={16} aria-hidden="true" />
+        </Link>
+        <div className="mt-3 rounded-2xl bg-cream-dark px-4 py-3 text-xs leading-relaxed text-charcoal-mid">
+          Side arm raise, standing roll down, and seated trunk rotation — no mat needed.
+        </div>
       </div>
     )
   }

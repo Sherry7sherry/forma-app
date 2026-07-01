@@ -40,6 +40,7 @@ export type FramingStatus =
  *  - 'minimal'     camera-first during the exercise: one tiny status chip + camera switch only
  *    (the parent owns exercise name / reps / timer, and voice carries the coaching) */
 export type OverlayMode = 'full' | 'calibration' | 'minimal'
+export type CameraLifecycleStatus = 'loading' | 'ready' | 'unavailable'
 
 export interface PoseResult {
   /** 0–100 form score, or null when no honest score can be computed for this
@@ -69,6 +70,7 @@ export interface PoseDiagnostics {
 
 interface Props {
   onPoseResult?: (result: PoseResult) => void
+  onCameraStatus?: (status: CameraLifecycleStatus) => void
   active?: boolean
   /** The exercise currently being performed — used to show exercise-specific framing guidance. */
   exerciseName?: string
@@ -381,7 +383,7 @@ const UI_UPDATE_INTERVAL_MS = 300
 const DEGRADED_FRAME_HOLD = 4
 
 export default function PoseCamera({
-  onPoseResult, active = true, exerciseName,
+  onPoseResult, onCameraStatus, active = true, exerciseName,
   isFloorExercise = false, formScoreSupported = true,
   fill = false, overlayMode = 'full',
   cameraOrientation = 'either', trackingLandmarks = [], trackingMinVisibility = 0.5,
@@ -437,6 +439,7 @@ export default function PoseCamera({
   // the parent re-renders (e.g. on every timer tick, rep count, form score).
   const activeRef       = useRef(active)
   const onPoseResultRef = useRef(onPoseResult)
+  const onCameraStatusRef = useRef(onCameraStatus)
   const formScoreSupportedRef = useRef(formScoreSupported)
   const isFloorExerciseRef = useRef(isFloorExercise)
   const trackingConfigRef = useRef({ landmarks: trackingLandmarks, minVisibility: trackingMinVisibility })
@@ -445,6 +448,7 @@ export default function PoseCamera({
   const facingRef       = useRef<'user' | 'environment'>(initialFacing)
   useEffect(() => { activeRef.current = active }, [active])
   useEffect(() => { onPoseResultRef.current = onPoseResult }, [onPoseResult])
+  useEffect(() => { onCameraStatusRef.current = onCameraStatus }, [onCameraStatus])
   useEffect(() => { formScoreSupportedRef.current = formScoreSupported }, [formScoreSupported])
   useEffect(() => { isFloorExerciseRef.current = isFloorExercise }, [isFloorExercise])
   useEffect(() => {
@@ -475,6 +479,10 @@ export default function PoseCamera({
     deviceClass: deviceInfo.deviceClass,
     orientation: deviceInfo.orientation,
   })
+
+  const emitCameraStatus = useCallback((next: CameraLifecycleStatus) => {
+    onCameraStatusRef.current?.(next)
+  }, [])
   useEffect(() => { debugEnabledRef.current = debugEnabled }, [debugEnabled])
 
   useEffect(() => {
@@ -722,6 +730,7 @@ export default function PoseCamera({
    */
   const startCamera = useCallback(async () => {
     stopCamera()
+    emitCameraStatus('loading')
     setStatus('loading')
     setErrMsg('')
     try {
@@ -756,12 +765,14 @@ export default function PoseCamera({
       lastDetectAt.current = 0
       lastUiUpdateAt.current = 0
       setStatus('ready')
+      emitCameraStatus('ready')
       rafRef.current = requestAnimationFrame(loop)
     } catch (err: any) {
       setErrMsg(err?.message ?? 'Unknown error')
       setStatus('error')
+      emitCameraStatus('unavailable')
     }
-  }, [stopCamera, handlePoseResults, loop, videoConstraints, isMobile, isTablet])
+  }, [stopCamera, emitCameraStatus, handlePoseResults, loop, videoConstraints, isMobile, isTablet])
 
   /**
    * Flip between the front and rear camera. Only the MediaStream is swapped —

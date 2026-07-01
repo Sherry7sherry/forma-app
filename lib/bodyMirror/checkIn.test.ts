@@ -36,4 +36,26 @@ describe('buildBodyCheckInInsert', () => {
       safetySignals: ['mystery_signal'],
     }), /Unknown safety signal/)
   })
+
+  it('keeps baseline and pre-session reports distinct from daily check-ins', () => {
+    const baseline = buildBodyCheckInInsert({
+      userId: 'user-1',
+      context: 'baseline',
+      comfort: 2,
+      focusAreas: [],
+      safetySignals: [],
+      recordedAt: '2026-07-01T08:00:00.000Z',
+    })
+    const preSession = buildBodyCheckInInsert({
+      userId: 'user-1',
+      context: 'pre_session',
+      comfort: 4,
+      focusAreas: [],
+      safetySignals: [],
+      recordedAt: '2026-07-02T08:00:00.000Z',
+    })
+
+    assert.equal(baseline.context, 'baseline')
+    assert.equal(preSession.context, 'pre_session')
+  })
 })

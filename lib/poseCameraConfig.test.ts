@@ -27,4 +27,12 @@ describe('PoseCamera tablet front-camera stability', () => {
     assert.match(source, /poseRef\.current\.send\(\{\s*image:\s*getDetectionImage\(videoRef\.current\)/)
     assert.match(source, /inputKind/)
   })
+
+  it('exposes optional camera lifecycle status without changing existing callers', () => {
+    assert.match(source, /onCameraStatus\?:\s*\(status:\s*CameraLifecycleStatus\)/)
+    assert.match(source, /onCameraStatusRef/)
+    assert.match(source, /emitCameraStatus\('loading'\)/)
+    assert.match(source, /emitCameraStatus\('ready'\)/)
+    assert.match(source, /emitCameraStatus\('unavailable'\)/)
+  })
 })
