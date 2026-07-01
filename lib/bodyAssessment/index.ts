@@ -5,4 +5,5 @@ export {
   buildObservationInserts,
   selectAssessmentKind,
 } from './persistence'
+export type { AssessmentCaptureMode, AssessmentKind, AssessmentOutcome } from './persistence'
 export * from './types'

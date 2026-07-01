@@ -40,6 +40,7 @@
     "lib/bodyAssessment/metrics.ts",
     "lib/bodyAssessment/metrics.test.ts",
     "lib/bodyAssessment/persistence.ts",
-    "lib/bodyAssessment/persistence.test.ts"
+    "lib/bodyAssessment/persistence.test.ts",
+    "lib/bodyAssessment/assessmentFlow.test.ts"
   ]
 }
