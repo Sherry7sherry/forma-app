@@ -1,4 +1,4 @@
-import type { SafetySignal } from './types'
+import type { BodyCheckInContext, SafetySignal } from './types'
 
 const SAFETY_SIGNALS = new Set<string>([
   'sharp_pain',
@@ -12,6 +12,7 @@ const SAFETY_SIGNALS = new Set<string>([
 
 export interface BodyCheckInInput {
   userId: string
+  context?: BodyCheckInContext
   comfort: number
   focusAreas: string[]
   safetySignals: string[]
@@ -20,7 +21,7 @@ export interface BodyCheckInInput {
 
 export interface BodyCheckInInsert {
   user_id: string
-  context: 'daily'
+  context: BodyCheckInContext
   comfort: number
   focus_areas: string[]
   safety_signals: SafetySignal[]
@@ -36,7 +37,7 @@ export function buildBodyCheckInInsert(input: BodyCheckInInput): BodyCheckInInse
 
   return {
     user_id: input.userId,
-    context: 'daily',
+    context: input.context ?? 'daily',
     comfort: input.comfort,
     focus_areas: [...new Set(input.focusAreas)],
     safety_signals: [...new Set(input.safetySignals)] as SafetySignal[],

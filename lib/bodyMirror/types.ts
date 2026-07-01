@@ -21,9 +21,11 @@ export type SafetySignal =
   | 'shortness_of_breath'
   | 'sudden_weakness'
 
+export type BodyCheckInContext = 'baseline' | 'daily' | 'pre_session' | 'post_session'
+
 export interface BodyCheckInEvidence {
   id: string
-  context: 'baseline' | 'daily' | 'pre_session' | 'post_session'
+  context: BodyCheckInContext
   comfort: number
   focusAreas: string[]
   safetySignals: SafetySignal[]

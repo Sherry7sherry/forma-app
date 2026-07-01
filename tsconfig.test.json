@@ -27,15 +27,19 @@
     "lib/bodyMirror/deriveBodyMirror.ts",
     "lib/bodyMirror/loadBodyMirror.ts",
     "lib/bodyMirror/checkIn.ts",
+    "lib/bodyMirror/sessionPolicy.ts",
     "lib/bodyMirror/viewModels.ts",
     "lib/bodyMirror/index.ts",
     "lib/bodyMirror/deriveBodyMirror.test.ts",
     "lib/bodyMirror/loadBodyMirror.test.ts",
     "lib/bodyMirror/checkIn.test.ts",
+    "lib/bodyMirror/sessionPolicy.test.ts",
     "lib/bodyMirror/bodyMirrorPages.test.ts",
     "lib/bodyMirror/bodyMirrorMigration.test.ts",
     "lib/bodyAssessment/types.ts",
     "lib/bodyAssessment/metrics.ts",
-    "lib/bodyAssessment/metrics.test.ts"
+    "lib/bodyAssessment/metrics.test.ts",
+    "lib/bodyAssessment/persistence.ts",
+    "lib/bodyAssessment/persistence.test.ts"
   ]
 }

@@ -1,5 +1,7 @@
 export { deriveBodyMirror } from './deriveBodyMirror'
 export { loadBodyMirrorForUser } from './loadBodyMirror'
 export { buildBodyCheckInInsert } from './checkIn'
+export { deriveSessionBodyPolicy } from './sessionPolicy'
+export type { SessionBodyPolicy } from './sessionPolicy'
 export { createHomeBodyMirrorModel, createProgressBodyMirrorModel } from './viewModels'
 export * from './types'
