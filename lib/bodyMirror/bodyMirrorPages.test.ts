@@ -18,6 +18,14 @@ describe('Body Mirror screen contracts', () => {
     assert.match(home(), /BodyCheckInSheet/)
   })
 
+  it('routes baseline and reassessment recommendations to the guided assessment', () => {
+    const source = home()
+
+    assert.match(source, /href="\/assessment"/)
+    assert.match(source, /Start 2-minute assessment/)
+    assert.match(source, /mode === 'check_in'/)
+  })
+
   it('uses the approved ink-sage treatment for the compact Home mirror', () => {
     const homeSource = home()
     const dimensionSource = dimensions()

@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { ScanLine, ShieldAlert } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import { formatDuration } from '@/lib/utils'
@@ -10,6 +12,7 @@ import { createVoiceCoach, type VoiceCue } from '@/lib/voiceCoach'
 import { FLOOR_EXERCISE_NAMES, getExerciseTrackingProfile } from '@/lib/exerciseTracking'
 import { hasTrackingCoverage, isWithinTrackingGrace, normalizedPoseDistance } from '@/lib/poseTracking'
 import { UpgradeButton } from '@/components/billing/BillingButton'
+import type { SessionBodyPolicy } from '@/lib/bodyMirror'
 import type { SessionPlan } from '@/types'
 
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
@@ -30,6 +33,7 @@ interface Props {
   isPro: boolean
   voiceCoachingEnabled: boolean
   sessionsThisWeek: number
+  bodyPolicy: SessionBodyPolicy
   partialSession?: {
     id: string
     lastExerciseIndex: number
@@ -372,13 +376,14 @@ const DEFAULT_CUE = { start: 'Set up in your starting position', watch: 'Move sl
 // pose tracking to reliably detect a rep cycle (e.g. small internal
 // contractions, breath-driven movement). AI form feedback still runs for
 // these — only auto rep-counting is held back until it can be done well.
-export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, sessionsThisWeek, partialSession }: Props) {
+export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, sessionsThisWeek, bodyPolicy, partialSession }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
   const resumeFrom = partialSession?.lastExerciseIndex ?? 0
 
   const [phase, setPhase]                 = useState<Phase>('pre-start')
+  const [assessmentPromptSkipped, setAssessmentPromptSkipped] = useState(false)
   const [paused, setPaused]               = useState(false)
   const [currentEx, setCurrentEx]         = useState(resumeFrom)
   const [repCount, setRepCount]           = useState(0)
@@ -681,6 +686,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 
   // ── Session management ────────────────────────────────────────
   async function startSession() {
+    if (bodyPolicy === 'block_safety') return
     setSaveError(null)
     if (partialSession) {
       // Resume — record already exists
@@ -1347,6 +1353,67 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   // ══════════════════════════════════════════════════════════════
   // SCREENS
   // ══════════════════════════════════════════════════════════════
+
+  if (phase === 'pre-start' && bodyPolicy === 'block_safety') {
+    return (
+      <div className="flex min-h-dvh flex-col bg-charcoal text-white">
+        <div className="flex items-center gap-4 px-5 pb-4 pt-14">
+          <button onClick={() => router.back()} aria-label="Go back"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+            <BackArrow />
+          </button>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-light">Safety pause</p>
+        </div>
+        <div className="flex flex-1 flex-col justify-center px-8 text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose/20 text-rose-light">
+            <ShieldAlert size={26} aria-hidden="true" />
+          </div>
+          <h1 className="font-serif text-3xl">Movement is paused.</h1>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-white/60">
+            Your latest body check-in includes a stop signal. Forma will not start a movement session right now.
+          </p>
+        </div>
+        <div className="px-5 pb-10">
+          <Link href="/home" className="flex w-full items-center justify-center rounded-full bg-white py-4 text-base font-semibold text-charcoal">
+            Return to Home
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'pre-start' && bodyPolicy === 'prompt_assessment' && !assessmentPromptSkipped) {
+    return (
+      <div className="flex min-h-dvh flex-col bg-charcoal text-white">
+        <div className="flex items-center gap-4 px-5 pb-4 pt-14">
+          <button onClick={() => router.back()} aria-label="Go back"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+            <BackArrow />
+          </button>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sage-light">Before you begin</p>
+        </div>
+        <div className="flex flex-1 flex-col justify-center px-8 text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-sage/20 text-sage-light">
+            <ScanLine size={26} aria-hidden="true" />
+          </div>
+          <h1 className="font-serif text-3xl">Give Forma a clearer starting point.</h1>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-white/60">
+            A two-minute, no-mat assessment helps tailor guidance to your current mobility and movement control.
+          </p>
+        </div>
+        <div className="grid gap-3 px-5 pb-10">
+          <Link href="/assessment" className="flex w-full items-center justify-center rounded-full bg-sage py-4 text-base font-semibold text-white">
+            Assess first
+          </Link>
+          <button type="button" onClick={() => setAssessmentPromptSkipped(true)}
+            className="w-full rounded-full border border-white/15 bg-white/10 py-3.5 text-sm font-medium text-white/80">
+            Continue without assessment
+          </button>
+          <p className="text-center text-xs leading-relaxed text-white/40">You can build your baseline later from Home.</p>
+        </div>
+      </div>
+    )
+  }
 
   // ── PRE-START ─────────────────────────────────────────────────
   if (phase === 'pre-start') {

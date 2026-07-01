@@ -35,6 +35,7 @@
     "lib/bodyMirror/checkIn.test.ts",
     "lib/bodyMirror/sessionPolicy.test.ts",
     "lib/bodyMirror/bodyMirrorPages.test.ts",
+    "lib/sessionAssessmentPolicy.test.ts",
     "lib/bodyMirror/bodyMirrorMigration.test.ts",
     "lib/bodyAssessment/types.ts",
     "lib/bodyAssessment/metrics.ts",
