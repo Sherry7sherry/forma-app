@@ -93,4 +93,9 @@ describe('session rep feedback copy', () => {
     assert.match(source, /AI stuck\? Use \+ to count manually\./)
     assert.match(source, /Manual count available/)
   })
+
+  it('keeps the upgrade form outside paragraph markup', () => {
+    assert.doesNotMatch(source, /<p className="text-white\/40">[\s\S]*?<UpgradeButton[\s\S]*?<\/p>/)
+    assert.match(source, /<div className="text-white\/40">[\s\S]*?<UpgradeButton[\s\S]*?<\/div>/)
+  })
 })

@@ -1470,12 +1470,12 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
                   ? '⚠ No free sessions left this week'
                   : `🌿 ${sessionsLeft} of ${FREE_SESSION_LIMIT} free sessions left · resets Monday`}
               </p>
-              <p className="text-white/40">
+              <div className="text-white/40">
                 Upgrade for unlimited sessions, AI form analysis + progress insights.{' '}
                 <UpgradeButton plan="monthly" className="text-sage-light underline font-medium">
                   See Pro →
                 </UpgradeButton>
-              </p>
+              </div>
             </div>
           )}
 
