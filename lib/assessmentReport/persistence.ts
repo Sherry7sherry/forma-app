@@ -1,10 +1,7 @@
 import type { AssessmentIntake, AssessmentRoute } from '../assessmentIntake/types'
+import { ASSESSMENT_REPORT_CLAIM_KEYS } from './types'
 
-const APPROVED_CLAIM_KEYS = new Set([
-  'arm_raise_torso_drift',
-  'controlled_forward_bend',
-  'rotation_difference',
-])
+const APPROVED_CLAIM_KEYS = new Set<string>(ASSESSMENT_REPORT_CLAIM_KEYS)
 
 function assertOwned(authenticatedUserId: string, userId: string) {
   if (!authenticatedUserId || authenticatedUserId !== userId) {

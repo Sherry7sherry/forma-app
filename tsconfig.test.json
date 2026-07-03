@@ -54,6 +54,10 @@
     "lib/coachingPolicy/index.ts",
     "lib/coachingPolicy/evaluateCoaching.test.ts",
     "lib/assessmentReport/persistence.ts",
-    "lib/assessmentReport/persistence.test.ts"
+    "lib/assessmentReport/persistence.test.ts",
+    "lib/assessmentReport/types.ts",
+    "lib/assessmentReport/composeReport.ts",
+    "lib/assessmentReport/index.ts",
+    "lib/assessmentReport/composeReport.test.ts"
   ]
 }
