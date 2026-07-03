@@ -9,16 +9,19 @@ import {
   CheckCircle2,
   FileText,
   HeartHandshake,
+  RefreshCw,
   ShieldCheck,
 } from 'lucide-react'
 
 import { ChoiceCard } from '@/components/assessment/ChoiceCard'
+import MovementAssessmentCapture from '@/components/assessment/MovementAssessmentCapture'
 import {
   readGuestAssessment,
   screenAssessment,
   writeGuestAssessment,
   type AssessmentIntake,
   type AssessmentRoute,
+  type GuestCaptureState,
   type IntakeSafetySignal,
 } from '@/lib/assessmentIntake'
 
@@ -98,6 +101,7 @@ export default function GuestAssessmentFlow() {
   const [createdAt, setCreatedAt] = useState<string | null>(null)
   const [intake, setIntake] = useState<AssessmentIntake>(INITIAL_INTAKE)
   const [route, setRoute] = useState<AssessmentRoute>(() => screenAssessment(INITIAL_INTAKE))
+  const [capture, setCapture] = useState<GuestCaptureState | null>(null)
   const [injuryChoice, setInjuryChoice] = useState<InjuryChoice | null>(null)
   const [movementFrequency, setMovementFrequency] = useState<AssessmentIntake['movementFrequency'] | null>(null)
   const [workPattern, setWorkPattern] = useState<AssessmentIntake['workPattern'] | null>(null)
@@ -110,6 +114,7 @@ export default function GuestAssessmentFlow() {
       setCreatedAt(saved.createdAt)
       setIntake(saved.intake)
       setRoute(saved.route)
+      setCapture(saved.capture)
       setConsented(true)
       setInjuryChoice(saved.intake.injuryStatus === 'none'
         ? 'none'
@@ -118,12 +123,17 @@ export default function GuestAssessmentFlow() {
       setWorkPattern(saved.intake.workPattern)
       setAvailableMinutes(saved.intake.availableMinutes)
       setSafetyApplies(saved.lastCompletedStep >= 7 ? saved.intake.safetySignals.length > 0 : null)
-      setStep(Math.min(saved.lastCompletedStep + 1, 8))
+      setStep(saved.capture ? 9 : Math.min(saved.lastCompletedStep + 1, 8))
     }
     setHydrated(true)
   }, [])
 
-  function persist(nextIntake: AssessmentIntake, lastCompletedStep: number, nextRoute?: AssessmentRoute) {
+  function persist(
+    nextIntake: AssessmentIntake,
+    lastCompletedStep: number,
+    nextRoute?: AssessmentRoute,
+    nextCapture: GuestCaptureState | null = capture,
+  ) {
     const timestamp = createdAt ?? new Date().toISOString()
     const screened = nextRoute ?? screenAssessment(nextIntake)
     if (!createdAt) setCreatedAt(timestamp)
@@ -136,7 +146,7 @@ export default function GuestAssessmentFlow() {
       lastCompletedStep,
       intake: nextIntake,
       route: screened,
-      capture: null,
+      capture: nextCapture,
     })
   }
 
@@ -203,6 +213,12 @@ export default function GuestAssessmentFlow() {
     setStep(8)
   }
 
+  function finishCapture(nextCapture: GuestCaptureState) {
+    setCapture(nextCapture)
+    persist(intake, 7, route, nextCapture)
+    setStep(9)
+  }
+
   if (!hydrated) {
     return <main className="min-h-dvh bg-cream" aria-label="Loading body assessment" />
   }
@@ -217,7 +233,7 @@ export default function GuestAssessmentFlow() {
   return (
     <main className="min-h-dvh bg-cream text-charcoal">
       <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
-        <header className="px-5 pb-4 pt-6 sm:pt-10">
+        {!(step === 8 && route.mode !== 'stop') && <header className="px-5 pb-4 pt-6 sm:pt-10">
           <div className="flex items-center justify-between">
             <Link href="/" className="inline-flex min-h-11 items-center gap-2 rounded-full pr-3 text-sm font-medium text-charcoal-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage">
               <ArrowLeft size={17} aria-hidden="true" /> Exit
@@ -235,7 +251,7 @@ export default function GuestAssessmentFlow() {
               )
             })}
           </div>
-        </header>
+        </header>}
 
         {step === 0 && (
           <AssessmentScreen eyebrow="Free body assessment" title="Learn what kind of movement fits your body today." intro="In about four minutes, combine your body context with three simple movements — no typing required.">
@@ -350,15 +366,49 @@ export default function GuestAssessmentFlow() {
         )}
 
         {step === 8 && route.mode !== 'stop' && (
-          <AssessmentScreen eyebrow="Your route is ready" title={route.mode === 'modified' ? 'We’ll keep the movements in a comfortable range.' : 'You’re ready for three simple movements.'} intro="Next, Forma checks framing and observes only the movement evidence needed for your body starting point.">
+          <MovementAssessmentCapture
+            constraints={route.constraints}
+            onComplete={result => finishCapture({
+              status: 'completed',
+              observations: result.observations,
+              overallConfidence: result.overallConfidence,
+              completedAt: new Date().toISOString(),
+            })}
+            onLowConfidence={result => finishCapture({
+              status: 'low_confidence',
+              observations: [],
+              overallConfidence: result.overallConfidence,
+              reason: result.reason,
+              completedAt: new Date().toISOString(),
+            })}
+            onCameraUnavailable={() => finishCapture({
+              status: 'camera_unavailable',
+              observations: [],
+              overallConfidence: null,
+              completedAt: new Date().toISOString(),
+            })}
+            onExit={() => { window.location.href = '/' }}
+          />
+        )}
+
+        {step === 9 && capture?.status === 'completed' && (
+          <AssessmentScreen eyebrow="Build report" title="Your clearest movement observation is ready." intro="Forma has kept only normalized movement evidence in this browser session. Your first insight comes next.">
             <div className="mt-7 rounded-3xl bg-sage-dark p-5 text-white shadow-soft">
               <CheckCircle2 size={28} className="text-sage-light" aria-hidden="true" />
-              <h2 className="mt-4 font-serif text-xl">About two minutes · no mat needed</h2>
-              <p className="mt-2 text-sm leading-relaxed text-white/75">Standing arm raise, Standing Roll Down, then seated trunk rotation.</p>
+              <h2 className="mt-4 font-serif text-xl">Camera check complete</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/75">Reliable observations: {capture.observations.length}. No raw video was retained.</p>
             </div>
-            <button type="button" disabled className="btn-primary mt-8 w-full disabled:cursor-not-allowed disabled:opacity-60">
-              Prepare camera <ArrowRight size={17} aria-hidden="true" />
-            </button>
+            <button type="button" disabled className="btn-primary mt-8 w-full disabled:cursor-not-allowed disabled:opacity-60">View my first insight</button>
+          </AssessmentScreen>
+        )}
+
+        {step === 9 && capture?.status !== 'completed' && (
+          <AssessmentScreen eyebrow="Build report" title="We need a clearer camera read." intro="No numeric movement insight was created from this attempt. Your answers remain available in this browser session.">
+            <div className="mt-7 rounded-3xl border border-sage/20 bg-white p-5 shadow-card">
+              <RefreshCw size={26} className="text-sage-dark" aria-hidden="true" />
+              <p className="mt-3 text-sm leading-relaxed text-charcoal-mid">Try again with your full body visible and steady lighting when you are ready.</p>
+            </div>
+            <button type="button" onClick={() => { setCapture(null); persist(intake, 7, route, null); setStep(8) }} className="btn-primary mt-8 w-full">Try camera again</button>
           </AssessmentScreen>
         )}
       </div>
