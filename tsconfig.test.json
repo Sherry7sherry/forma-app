@@ -44,6 +44,10 @@
     "lib/bodyAssessment/metrics.test.ts",
     "lib/bodyAssessment/persistence.ts",
     "lib/bodyAssessment/persistence.test.ts",
-    "lib/bodyAssessment/assessmentFlow.test.ts"
+    "lib/bodyAssessment/assessmentFlow.test.ts",
+    "lib/assessmentIntake/types.ts",
+    "lib/assessmentIntake/screenAssessment.ts",
+    "lib/assessmentIntake/index.ts",
+    "lib/assessmentIntake/screenAssessment.test.ts"
   ]
 }
