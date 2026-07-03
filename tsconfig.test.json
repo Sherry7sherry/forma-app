@@ -66,6 +66,8 @@
     "lib/assessmentReport/composeReport.test.ts",
     "lib/assessmentReport/saveGuestAssessment.ts",
     "lib/assessmentReport/saveGuestAssessment.test.ts",
-    "lib/assessmentReport/assessmentConversionPages.test.ts"
+    "lib/assessmentReport/assessmentConversionPages.test.ts",
+    "lib/assessmentReport/loadLatestReport.ts",
+    "lib/assessmentReport/reportPages.test.ts"
   ]
 }

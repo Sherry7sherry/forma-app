@@ -75,6 +75,14 @@ describe('composeAssessmentReport', () => {
     assert.deepEqual(report.sections.find(section => section.kind === 'insight')?.evidenceIds, ['obs-1'])
   })
 
+  it('persists personalized locked chapter titles from the deterministic plan', () => {
+    const report = composeAssessmentReport(reportInput())
+    const paid = report.sections.filter(section => section.visibility === 'paid')
+
+    assert.equal(paid.length, 4)
+    assert.ok(paid.every(section => section.title.toLowerCase().includes('trunk control')))
+  })
+
   it('uses the highest-confidence allowed insight', () => {
     const lower = { ...coaching.insights[0], id: 'lower', confidence: 0.72 }
     const higher = {

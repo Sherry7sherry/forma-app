@@ -72,6 +72,45 @@ function safetyDisclosure(): AssessmentReportSection {
   }
 }
 
+function paidChapters(
+  input: ComposeAssessmentReportInput,
+  focus: string,
+  evidenceIds: string[],
+  confidence: number,
+): AssessmentReportSection[] {
+  const shared = { kind: 'training_path' as const, visibility: 'paid' as const, evidenceIds, confidence }
+  const chapters: AssessmentReportSection[] = [{
+    ...shared,
+    id: 'training-path',
+    title: `Your first two-week ${focus} path`,
+    body: `A progressive ${input.coaching.plan.durationMinutes}-minute sequence based on today’s allowed movements.`,
+  }, {
+    ...shared,
+    id: 'weekly-schedule',
+    title: `Your ${focus} weekly schedule`,
+    body: 'A realistic rhythm for quick and full sessions that fits the time you selected.',
+  }, {
+    ...shared,
+    id: 'office-resets',
+    title: `Five-minute ${focus} office resets`,
+    body: 'Short no-mat options for days when sitting leaves your body asking for movement.',
+  }, {
+    ...shared,
+    id: 'reassessment-history',
+    title: `Your ${focus} reassessment history`,
+    body: 'Comparable movement evidence, confidence, and plain-language reasons for future plan changes.',
+  }]
+  if (input.intake.injuryStatus !== 'none' && input.intake.injuryRegions.length > 0) {
+    chapters.splice(1, 0, {
+      ...shared,
+      id: 'movement-changes',
+      title: `Movement changes for ${readableList(input.intake.injuryRegions)} in your ${focus} plan`,
+      body: 'Relevant range changes, substitutions, and exclusions from the deterministic movement policy.',
+    })
+  }
+  return chapters
+}
+
 function safetyHold(input: ComposeAssessmentReportInput): AssessmentReport {
   const reason = input.route.reasons[0]?.userMessage
     ?? 'Pause movement for now and seek appropriate professional support before continuing.'
@@ -160,15 +199,7 @@ export function composeAssessmentReport(input: ComposeAssessmentReportInput): As
       body: `Your next movement work can prioritize ${focus}.`,
       evidenceIds: insight.evidenceIds,
       confidence: insight.confidence,
-    }, {
-      id: 'training-path',
-      kind: 'training_path',
-      visibility: 'paid',
-      title: `Your ${input.coaching.plan.durationMinutes}-minute ${focus} path`,
-      body: 'Unlock the full exercise sequence, movement alternatives, and reassessment updates.',
-      evidenceIds: insight.evidenceIds,
-      confidence: insight.confidence,
-    }],
+    }, ...paidChapters(input, focus, insight.evidenceIds, insight.confidence)],
     triggeredRuleIds,
   }
 }
