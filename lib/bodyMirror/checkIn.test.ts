@@ -37,6 +37,16 @@ describe('buildBodyCheckInInsert', () => {
     }), /Unknown safety signal/)
   })
 
+  it('persists an explicit professional pause signal', () => {
+    assert.deepEqual(buildBodyCheckInInsert({
+      userId: 'user-1',
+      comfort: 2,
+      focusAreas: [],
+      safetySignals: ['professional_pause'],
+      recordedAt: '2026-07-03T00:00:00.000Z',
+    }).safety_signals, ['professional_pause'])
+  })
+
   it('keeps baseline and pre-session reports distinct from daily check-ins', () => {
     const baseline = buildBodyCheckInInsert({
       userId: 'user-1',

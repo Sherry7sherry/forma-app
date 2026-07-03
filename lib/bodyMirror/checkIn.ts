@@ -8,6 +8,7 @@ const SAFETY_SIGNALS = new Set<string>([
   'chest_pain',
   'shortness_of_breath',
   'sudden_weakness',
+  'professional_pause',
 ])
 
 export interface BodyCheckInInput {

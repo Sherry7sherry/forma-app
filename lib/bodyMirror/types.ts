@@ -20,6 +20,7 @@ export type SafetySignal =
   | 'chest_pain'
   | 'shortness_of_breath'
   | 'sudden_weakness'
+  | 'professional_pause'
 
 export type BodyCheckInContext = 'baseline' | 'daily' | 'pre_session' | 'post_session'
 

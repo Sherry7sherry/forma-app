@@ -8,6 +8,7 @@ const SAFETY_SIGNAL_LABELS: Record<SafetySignal, string> = {
   chest_pain: 'chest pain',
   shortness_of_breath: 'shortness of breath',
   sudden_weakness: 'sudden weakness',
+  professional_pause: 'a professional recommendation to pause',
 }
 
 export function formatSafetySignals(signals: SafetySignal[]): string {
