@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { safeNext } from '@/lib/authReturn'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignupPage() {
@@ -17,12 +18,14 @@ function SignupForm() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const isPro        = searchParams.get('plan') === 'pro'
+  const next          = safeNext(searchParams.get('next') ?? (isPro ? '/onboarding?plan=pro' : '/onboarding'))
 
   const supabase = createClient()
   const [fullName, setFullName] = useState('')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [loading,  setLoading]  = useState(false)
+  const [confirmationSent, setConfirmationSent] = useState(false)
   const [error,    setError]    = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({})
 
@@ -42,10 +45,13 @@ function SignupForm() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
     })
 
     if (error) {
@@ -57,17 +63,29 @@ function SignupForm() {
       }
       setLoading(false)
     } else {
-      // Preserve pro intent through onboarding
-      const dest = isPro ? '/onboarding?plan=pro' : '/onboarding'
-      router.push(dest)
-      router.refresh()
+      if (data.session) {
+        router.push(next)
+        router.refresh()
+      } else {
+        setConfirmationSent(true)
+        setLoading(false)
+      }
     }
   }
 
+  if (confirmationSent) {
+    return (
+      <main className="flex min-h-dvh items-center bg-cream px-6 text-charcoal">
+        <section className="mx-auto w-full max-w-md rounded-3xl border border-border bg-white p-6 text-center shadow-card">
+          <h1 className="font-serif text-3xl">Check your inbox</h1>
+          <p className="mt-3 text-sm leading-relaxed text-charcoal-mid">Use the confirmation link we sent to {email}. You’ll return to save your body starting point.</p>
+        </section>
+      </main>
+    )
+  }
+
   async function handleGoogle() {
-    const redirectTo = isPro
-      ? `${window.location.origin}/auth/callback?plan=pro`
-      : `${window.location.origin}/auth/callback`
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },
@@ -149,7 +167,7 @@ function SignupForm() {
 
       <p className="text-center text-sm text-muted mt-6 fade-up" style={{ animationDelay: '0.2s' }}>
         Already have an account?{' '}
-        <Link href="/login" className="text-sage font-medium">Sign in</Link>
+        <Link href={`/login?next=${encodeURIComponent(next)}`} className="text-sage font-medium">Sign in</Link>
       </p>
     </main>
   )

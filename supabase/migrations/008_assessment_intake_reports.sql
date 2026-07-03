@@ -12,6 +12,7 @@ create table if not exists public.health_intake_versions (
   consent_version   text not null check (length(trim(consent_version)) > 0),
   created_at        timestamptz not null default now(),
   unique (id, user_id),
+  unique (assessment_id, user_id, intake_version),
   foreign key (assessment_id, user_id)
     references public.movement_assessments (id, user_id)
     on delete set null (assessment_id)
@@ -28,6 +29,7 @@ create table if not exists public.body_report_versions (
   evidence_refs      jsonb not null default '[]',
   change_summary     text,
   generated_at       timestamptz not null default now(),
+  unique (assessment_id, user_id, report_version),
   foreign key (assessment_id, user_id)
     references public.movement_assessments (id, user_id)
     on delete set null (assessment_id),

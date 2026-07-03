@@ -40,13 +40,11 @@ export function buildHealthIntakeVersionInsert(input: HealthIntakeVersionInput) 
 interface PersistedReportSection {
   claimKey?: string
   evidenceIds?: readonly string[]
-  [key: string]: unknown
 }
 
 interface PersistedReport {
   status: string
   sections: readonly PersistedReportSection[]
-  [key: string]: unknown
 }
 
 export interface ReportVersionInput {

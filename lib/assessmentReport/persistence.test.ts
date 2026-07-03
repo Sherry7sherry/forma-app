@@ -38,6 +38,8 @@ describe('assessment intake and report migration', () => {
     assert.match(sql, /body_report_versions[\s\S]*assessment_id\s+uuid/is)
     assert.match(sql, /body_report_versions[\s\S]*intake_version_id\s+uuid/is)
     assert.match(sql, /evidence_refs\s+jsonb\s+not null/is)
+    assert.match(sql, /unique \(assessment_id, user_id, intake_version\)/i)
+    assert.match(sql, /unique \(assessment_id, user_id, report_version\)/i)
     assert.doesNotMatch(sql, /raw_video|video_url|guest_email/i)
   })
 

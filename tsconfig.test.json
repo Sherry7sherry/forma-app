@@ -15,6 +15,8 @@
     "lib/stripeWebhook.test.ts",
     "lib/supabaseErrors.ts",
     "lib/supabaseErrors.test.ts",
+    "lib/authReturn.ts",
+    "lib/authReturn.test.ts",
     "lib/supabaseClientEnv.test.ts",
     "lib/poseCameraConfig.test.ts",
     "lib/repFeedback.test.ts",
@@ -61,6 +63,9 @@
     "lib/assessmentReport/types.ts",
     "lib/assessmentReport/composeReport.ts",
     "lib/assessmentReport/index.ts",
-    "lib/assessmentReport/composeReport.test.ts"
+    "lib/assessmentReport/composeReport.test.ts",
+    "lib/assessmentReport/saveGuestAssessment.ts",
+    "lib/assessmentReport/saveGuestAssessment.test.ts",
+    "lib/assessmentReport/assessmentConversionPages.test.ts"
   ]
 }

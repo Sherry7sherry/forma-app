@@ -398,7 +398,7 @@ export default function GuestAssessmentFlow() {
               <h2 className="mt-4 font-serif text-xl">Camera check complete</h2>
               <p className="mt-2 text-sm leading-relaxed text-white/75">Reliable observations: {capture.observations.length}. No raw video was retained.</p>
             </div>
-            <button type="button" disabled className="btn-primary mt-8 w-full disabled:cursor-not-allowed disabled:opacity-60">View my first insight</button>
+            <Link href="/body-assessment/insight" className="btn-primary mt-8 w-full">View my first insight</Link>
           </AssessmentScreen>
         )}
 
