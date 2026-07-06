@@ -51,11 +51,11 @@ export default async function ProfilePage() {
         <div id="upgrade" className="mx-5 mb-5 rounded-2xl p-5
                                      bg-gradient-to-br from-sage to-sage-dark shadow-soft">
           <div className="text-white/75 text-xs font-semibold uppercase tracking-widest mb-1">
-            Unlock everything
+            Personalized coaching
           </div>
-          <h3 className="font-serif text-xl text-white mb-1">Upgrade to Pro</h3>
+          <h3 className="font-serif text-xl text-white mb-1">Upgrade to Forma Pro</h3>
           <p className="text-white/75 text-xs mb-4">
-            AI camera, unlimited sessions, advanced tracking.
+            Unlock unlimited personalized Pilates, AI form feedback, living body report updates, and body pattern insights.
           </p>
           <div className="flex gap-2">
             <UpgradeButton plan="monthly"
