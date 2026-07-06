@@ -114,7 +114,7 @@ export default async function HomePage() {
                 ? <AlertTriangle size={18} className="text-rose-dark" aria-hidden="true" />
                 : <Sparkles size={18} className="text-sage-dark" aria-hidden="true" />}
               <p className={`text-xs font-semibold uppercase tracking-[0.14em]
-                ${bodyMirror.status === 'safety_hold' ? 'text-rose-dark' : 'text-sage-dark'}`}>Recommended today</p>
+                ${bodyMirror.status === 'safety_hold' ? 'text-rose-dark' : 'text-sage-dark'}`}>Today’s Plan</p>
             </div>
             <h2 id="recommendation-heading" className="font-serif text-xl">{bodyMirror.recommendation.title}</h2>
             <p className="mt-2 text-sm leading-relaxed text-charcoal-mid">{bodyMirror.recommendation.reason}</p>
