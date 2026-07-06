@@ -11,7 +11,7 @@ describe('guest choice-first assessment flow', () => {
 
     assert.match(landing, /href="\/body-assessment"/)
     assert.match(landing, /Start my free body assessment/)
-    assert.match(landing, /In four minutes, learn what kind of movement fits your body today/)
+    assert.match(landing, /Start with a quick body assessment/)
     assert.doesNotMatch(landing, /Pricing|\$14\.99|Start Pro free trial/)
   })
 
