@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
-const FILTERS = ['All', 'Recovery', 'Strength', 'Flexibility', 'Alignment', 'Core']
+const FILTERS = ['All', 'Quick Reset', 'Full Practice', 'Recovery', 'Strength', 'Mobility', 'Core']
 
 const CATEGORY_COLORS: Record<string, string> = {
   spine:      'from-sage-dark to-[#3D6B5A]',
@@ -15,25 +15,30 @@ const CATEGORY_COLORS: Record<string, string> = {
   cool_down:  'from-purple-400 to-purple-700',
 }
 
+function matchesFilter(plan: any, filter: string): boolean {
+  if (filter === 'All') return true
+  if (filter === 'Quick Reset') return Number(plan.duration_minutes ?? 0) <= 8
+  if (filter === 'Full Practice') return Number(plan.duration_minutes ?? 0) >= 15
+
+  const normalized = filter.toLowerCase()
+  return (
+    plan.goals?.some((goal: string) => goal.includes(normalized)) ||
+    plan.category?.includes(normalized) ||
+    plan.focus_areas?.some((area: string) => area.includes(normalized))
+  )
+}
+
 export default function SessionsClient({ plans, isPro }: { plans: any[]; isPro: boolean }) {
   const [filter, setFilter] = useState('All')
 
-  const filtered = plans.filter(p => {
-    if (filter === 'All') return true
-    const f = filter.toLowerCase()
-    return (
-      p.goals?.some((g: string) => g.includes(f)) ||
-      p.category?.includes(f) ||
-      p.focus_areas?.some((a: string) => a.includes(f))
-    )
-  })
+  const filtered = plans.filter(plan => matchesFilter(plan, filter))
 
   return (
     <div className="pt-14 pb-6">
       {/* Header */}
       <div className="px-5 mb-5 fade-up">
         <h1 className="font-serif text-2xl font-medium mb-1">Sessions</h1>
-        <p className="text-muted text-sm">Pilates-based movement, built for you.</p>
+        <p className="text-muted text-sm">Pilates sessions matched to your body and your day.</p>
       </div>
 
       {/* Filter chips — wrap layout, no horizontal scroll clipping */}
