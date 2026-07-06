@@ -58,6 +58,7 @@ export interface MovementObservationEvidence {
 }
 
 export type SessionBodyFeeling = 'tight' | 'okay' | 'good' | 'great'
+export type PostSessionResponse = 'better' | 'unchanged' | 'worse'
 
 export interface SessionEvidence {
   id: string
