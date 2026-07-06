@@ -14,9 +14,9 @@ export default function LandingPage() {
             className="text-sm font-medium text-charcoal-mid hover:text-charcoal transition-colors">
             Sign in
           </Link>
-          <Link href="/signup"
+          <Link href="/body-assessment"
             className="btn-primary py-2.5 px-5 text-sm">
-            Get started
+            Free assessment
           </Link>
         </div>
       </nav>
@@ -26,28 +26,26 @@ export default function LandingPage() {
         <div className="inline-flex items-center gap-2 bg-sage/10 border border-sage/20
                         rounded-full px-4 py-1.5 text-xs font-semibold text-sage-dark
                         mb-6 uppercase tracking-widest">
-          ✨ AI-powered Pilates coach
+          Personal Body Mirror
         </div>
         <h1 className="font-serif text-4xl sm:text-5xl font-medium text-charcoal
                        leading-tight mb-5">
-          Feel your progress<br/>
-          <span className="text-sage">in every movement.</span>
+          In four minutes, learn what kind of movement fits your body today.
         </h1>
         <p className="text-charcoal-mid text-lg leading-relaxed mb-8 max-w-md mx-auto">
-          Forma uses your phone camera to watch your form in real time —
-          like having a Pilates instructor in your pocket.
+          Combine your body history, everyday habits, and three simple movements to see one free personal insight before you decide what comes next.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/signup"
+          <Link href="/body-assessment"
             className="btn-primary py-4 px-8 text-base justify-center">
-            Start for free
+            Start my free body assessment
           </Link>
           <Link href="#how-it-works"
             className="btn-secondary py-4 px-8 text-base justify-center">
             See how it works
           </Link>
         </div>
-        <p className="text-muted text-xs mt-4">Free to join · No credit card required</p>
+        <p className="text-muted text-xs mt-4">About four minutes · No mat · No account needed to start</p>
       </section>
 
       {/* ── App preview ── */}
@@ -107,7 +105,7 @@ export default function LandingPage() {
                   <span className="text-white text-[9px] font-bold">LIVE</span>
                 </div>
                 <div className="bg-black/50 rounded-full px-2 py-1">
-                  <span className="text-green-300 text-[9px] font-bold">Form 87%</span>
+                  <span className="text-green-300 text-[9px] font-bold">Movement observed</span>
                 </div>
               </div>
               <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
@@ -118,7 +116,7 @@ export default function LandingPage() {
           </div>
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-2 mx-4 mb-5">
-            {[['4','Sessions'],['82%','Form avg'],['6 🔥','Streak']].map(([v,l]) => (
+            {[['Fresh','Body data'],['Personal','Baseline'],['2 wk','Recheck']].map(([v,l]) => (
               <div key={l} className="bg-white/8 rounded-xl py-2.5 text-center">
                 <div className="font-serif text-base text-white">{v}</div>
                 <div className="text-white/40 text-[9px]">{l}</div>
@@ -137,10 +135,10 @@ export default function LandingPage() {
           </h2>
           <div className="flex flex-col gap-6">
             {[
-              { num: '01', title: 'Tell us your goals', desc: 'Recovery, alignment, strength, or flexibility — we build a plan around your body and history in 3 questions.' },
+              { num: '01', title: 'Tell us your context', desc: 'Six quick choices cover goals, body focus, relevant history, habits, work pattern, and available time.' },
               { num: '02', title: 'Set up your phone', desc: 'We tell you exactly where to place your phone for each session — side view, distance, height. No guessing.' },
-              { num: '03', title: 'Move with guidance', desc: 'Your camera watches your form in real time. The AI scores each movement and gives you instant feedback chips.' },
-              { num: '04', title: 'See your progress', desc: 'After every session, get an AI coach summary, body insights, and a form score trend you can actually feel.' },
+              { num: '03', title: 'Move with guidance', desc: 'Three simple movements create confidence-qualified observations without uploading raw video.' },
+              { num: '04', title: 'See your progress', desc: 'Track comfort, mobility, and movement control against your own baseline over time.' },
             ].map(s => (
               <div key={s.num} className="flex gap-5 items-start">
                 <div className="font-serif text-3xl text-sage/30 font-medium flex-shrink-0 w-10">{s.num}</div>
@@ -165,7 +163,7 @@ export default function LandingPage() {
             { emoji: '📷', title: 'Real-time AI form', desc: 'MediaPipe pose detection scores your alignment as you move' },
             { emoji: '🌿', title: 'Recovery-first', desc: 'Every session designed around healing, not just burning calories' },
             { emoji: '🧍‍♀️', title: 'Posture & alignment', desc: 'Specific feedback on spine, hips, shoulders — what actually matters' },
-            { emoji: '📈', title: 'Visible progress', desc: 'Form scores, streaks, and body insights after every session' },
+            { emoji: '📈', title: 'Visible progress', desc: 'Comfort, mobility, and movement control compared only with your baseline' },
             { emoji: '🎯', title: 'Personalised plan', desc: '30 Pilates exercises sequenced to your goals and focus areas' },
             { emoji: '💬', title: 'AI coach feedback', desc: 'Post-session summary written to your specific session performance' },
           ].map(f => (
@@ -175,66 +173,6 @@ export default function LandingPage() {
               <p className="text-xs text-muted leading-relaxed">{f.desc}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* ── Pricing ── */}
-      <section className="px-6 py-16 bg-cream-dark">
-        <div className="max-w-2xl mx-auto">
-          <p className="text-xs font-semibold text-sage uppercase tracking-widest text-center mb-2">Pricing</p>
-          <h2 className="font-serif text-3xl text-charcoal text-center mb-10">Simple, honest pricing</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {/* Free */}
-            <div className="card flex flex-col gap-4">
-              <div>
-                <div className="font-serif text-xl text-charcoal mb-1">Free</div>
-                <div className="text-3xl font-serif text-charcoal">$0</div>
-                <div className="text-muted text-xs mt-1">Forever free</div>
-              </div>
-              <ul className="flex flex-col gap-2 flex-1">
-                {['3 sessions per week','Video-guided exercises','Basic progress tracking'].map(f => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-charcoal-mid">
-                    <span className="text-sage text-base">✓</span>{f}
-                  </li>
-                ))}
-                {['AI camera form analysis','Unlimited sessions'].map(f => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-muted line-through">
-                    <span className="text-border text-base">✗</span>{f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/signup" className="btn-secondary w-full justify-center py-3">
-                Get started free
-              </Link>
-            </div>
-            {/* Pro */}
-            <div className="card flex flex-col gap-4 border-sage bg-gradient-to-br from-sage/5 to-transparent relative overflow-hidden">
-              <div className="absolute top-4 right-4 bg-sage text-white text-[10px] font-bold
-                              px-2.5 py-1 rounded-full uppercase tracking-wide">
-                Popular
-              </div>
-              <div>
-                <div className="font-serif text-xl text-charcoal mb-1">Pro</div>
-                <div className="text-3xl font-serif text-charcoal">$14.99
-                  <span className="text-base text-muted font-sans">/mo</span>
-                </div>
-                <div className="text-muted text-xs mt-1">or $99/year — save 45%</div>
-              </div>
-              <ul className="flex flex-col gap-2 flex-1">
-                {['Unlimited sessions','Real-time AI form analysis','Full progress & body insights','All session types & programs','AI coach post-session feedback'].map(f => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-charcoal-mid">
-                    <span className="text-sage text-base">✓</span>{f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/signup?plan=pro" className="btn-primary w-full justify-center py-3">
-                Start Pro free trial
-              </Link>
-            </div>
-          </div>
-          <p className="text-center text-xs text-muted mt-4">
-            🌟 Founding member offer: $59/year for the first 200 members
-          </p>
         </div>
       </section>
 
@@ -252,12 +190,11 @@ export default function LandingPage() {
           Ready to feel the difference?
         </h2>
         <p className="text-charcoal-mid mb-8 max-w-sm mx-auto leading-relaxed">
-          Join Forma and start your first session in under 5 minutes.
-          Your body will thank you.
+          Start with one clear body insight. Create an account only if you choose to save your starting point.
         </p>
-        <Link href="/signup"
+        <Link href="/body-assessment"
           className="btn-primary py-4 px-10 text-base justify-center inline-flex">
-          Get started free
+          Start my free body assessment
         </Link>
       </section>
 
