@@ -44,6 +44,8 @@
     "lib/subscriptionEntitlement.test.ts",
     "lib/livingReport/deriveReportUpdate.ts",
     "lib/livingReport/deriveReportUpdate.test.ts",
+    "lib/assessmentAnalytics.ts",
+    "lib/assessmentAnalytics.test.ts",
     "lib/bodyMirror/bodyMirrorMigration.test.ts",
     "lib/bodyAssessment/types.ts",
     "lib/bodyAssessment/metrics.ts",

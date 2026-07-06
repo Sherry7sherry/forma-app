@@ -112,6 +112,33 @@ export default async function ProfilePage() {
           </div>
           <span className="text-border text-lg">›</span>
         </Link>
+        <Link href="/body-report#report-history"
+          className="flex items-center gap-3 px-4 py-3.5 active:bg-cream-dark transition-colors">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base bg-sage/15 flex-shrink-0">📄</div>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-charcoal">Body report &amp; history</div>
+            <div className="text-xs text-muted">View your current report and saved versions</div>
+          </div>
+          <span className="text-border text-lg">›</span>
+        </Link>
+        <a href="/api/account/export"
+          className="flex items-center gap-3 px-4 py-3.5 active:bg-cream-dark transition-colors">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base bg-sage/15 flex-shrink-0">⬇️</div>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-charcoal">Export my data</div>
+            <div className="text-xs text-muted">Download a JSON copy of your Forma records</div>
+          </div>
+          <span className="text-border text-lg">›</span>
+        </a>
+        <Link href="/profile/data-controls"
+          className="flex items-center gap-3 px-4 py-3.5 active:bg-cream-dark transition-colors">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base bg-red-50 flex-shrink-0">🗑️</div>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-red-500">Delete account and data</div>
+            <div className="text-xs text-muted">Requires typed confirmation before deletion</div>
+          </div>
+          <span className="text-border text-lg">›</span>
+        </Link>
         <SignOutItem />
       </SettingGroup>
     </div>

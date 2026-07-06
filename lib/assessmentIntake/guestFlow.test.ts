@@ -15,6 +15,13 @@ describe('guest choice-first assessment flow', () => {
     assert.doesNotMatch(landing, /Pricing|\$14\.99|Start Pro free trial/)
   })
 
+  it('keeps assessment and insight public while the durable save remains authenticated', () => {
+    const proxy = readFileSync('proxy.ts', 'utf8')
+    assert.match(proxy, /PUBLIC_PATHS[\s\S]*'\/body-assessment'[\s\S]*'\/body-assessment\/insight'/)
+    const publicPaths = proxy.match(/const PUBLIC_PATHS = \[([^\]]+)\]/)?.[1] ?? ''
+    assert.doesNotMatch(publicPaths, /body-assessment\/save/)
+  })
+
   it('uses accessible native choices and keeps six quick questions explicit', () => {
     const flow = readFileSync(flowPath, 'utf8')
     const choice = readFileSync(choicePath, 'utf8')

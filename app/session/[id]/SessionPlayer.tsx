@@ -14,6 +14,7 @@ import { hasTrackingCoverage, isWithinTrackingGrace, normalizedPoseDistance } fr
 import { UpgradeButton } from '@/components/billing/BillingButton'
 import type { SessionBodyPolicy } from '@/lib/bodyMirror'
 import type { TrainingEntitlement } from '@/lib/subscriptionEntitlement'
+import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 import type { SessionPlan } from '@/types'
 
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
@@ -717,6 +718,9 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       return
     }
     recordId.current = data.id
+    if (isPersonalizedIntro) {
+      trackAssessmentEvent('first_session', { step_name: 'first_session', outcome: 'started' })
+    }
     setIntroPaused(false)
     setIntroIsReview(false)
     setPhase('exercise-intro')
@@ -1919,7 +1923,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sage-light">Your first session is complete</p>
             <h2 id="intro-trial-heading" className="mt-2 font-serif text-xl">Keep your plan adapting.</h2>
             <p className="mt-2 text-xs leading-relaxed text-white/70">Start a seven-day trial to continue with personalized sessions and report updates.</p>
-            <form action="/api/stripe/checkout?plan=monthly&trial=true" method="post" className="mt-4">
+            <form action="/api/stripe/checkout?plan=monthly&trial=true" method="post" className="mt-4"
+              onSubmit={() => trackAssessmentEvent('trial_start', { step_name: 'trial', outcome: 'started' })}>
               <button type="submit" className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-white px-5 text-sm font-semibold text-sage-dark">
                 Start my seven-day trial
               </button>

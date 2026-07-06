@@ -28,6 +28,7 @@ import {
 import { buildBodyCheckInInsert } from '@/lib/bodyMirror'
 import { createClient } from '@/lib/supabase/client'
 import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
+import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 
 type Stage = 'intro' | 'check_in' | 'capture' | 'fallback' | 'result'
 type ResultOutcome = 'completed' | 'low_confidence' | 'camera_unavailable' | 'safety_hold'
@@ -140,6 +141,13 @@ export default function BodyAssessmentFlow({ userId, kind }: { userId: string; k
       })
       const completionResult = await supabaseRef.current.from('movement_assessments').update(completion).eq('id', assessmentId)
       assertSupabaseSuccess(completionResult, 'Complete movement assessment')
+      if (kind === 'reassessment') {
+        trackAssessmentEvent('reassessment_complete', {
+          step_name: 'reassessment',
+          outcome: 'completed',
+          confidence_bucket: result.overallConfidence >= 0.85 ? 'high' : 'medium',
+        })
+      }
       setOutcome('completed')
       setStage('result')
     } catch (caught) {

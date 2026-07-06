@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
 
 import { ChoiceCard } from '@/components/assessment/ChoiceCard'
 import MovementAssessmentCapture from '@/components/assessment/MovementAssessmentCapture'
+import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 import {
   readGuestAssessment,
   screenAssessment,
@@ -95,6 +96,8 @@ function stageLabel(step: number) {
 }
 
 export default function GuestAssessmentFlow() {
+  const entryTracked = useRef(false)
+  const cameraStartTracked = useRef(false)
   const [hydrated, setHydrated] = useState(false)
   const [step, setStep] = useState(0)
   const [consented, setConsented] = useState(false)
@@ -109,6 +112,12 @@ export default function GuestAssessmentFlow() {
   const [safetyApplies, setSafetyApplies] = useState<boolean | null>(null)
 
   useEffect(() => {
+    if (!entryTracked.current) {
+      entryTracked.current = true
+      trackAssessmentEvent('assessment_entry', {
+        step_name: 'entry', outcome: 'started', experiment_variant: 'choice_first_v1',
+      })
+    }
     const saved = readGuestAssessment(window.sessionStorage)
     if (saved) {
       setCreatedAt(saved.createdAt)
@@ -127,6 +136,13 @@ export default function GuestAssessmentFlow() {
     }
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (hydrated && step === 8 && route.mode !== 'stop' && !cameraStartTracked.current) {
+      cameraStartTracked.current = true
+      trackAssessmentEvent('camera_start', { step_name: 'camera_assessment', outcome: 'started' })
+    }
+  }, [hydrated, route.mode, step])
 
   function persist(
     nextIntake: AssessmentIntake,
@@ -210,13 +226,34 @@ export default function GuestAssessmentFlow() {
     const nextIntake = safetyApplies ? intake : { ...intake, safetySignals: [] }
     const nextRoute = screenAssessment(nextIntake)
     persist(nextIntake, 7, nextRoute)
+    trackAssessmentEvent('intake_complete', {
+      step_name: 'safety_screen',
+      outcome: nextRoute.mode === 'stop' ? 'stopped' : 'completed',
+      ...(nextRoute.mode === 'stop' ? { failure_category: 'safety_stop' } : {}),
+    })
     setStep(8)
   }
 
   function finishCapture(nextCapture: GuestCaptureState) {
     setCapture(nextCapture)
     persist(intake, 7, route, nextCapture)
+    const outcome = nextCapture.status === 'completed'
+      ? 'completed'
+      : nextCapture.status === 'low_confidence' ? 'low_confidence' : 'camera_unavailable'
+    const confidence = nextCapture.overallConfidence ?? 0
+    trackAssessmentEvent('assessment_complete', {
+      step_name: 'camera_assessment',
+      outcome,
+      confidence_bucket: confidence >= 0.85 ? 'high' : confidence >= 0.7 ? 'medium' : confidence > 0 ? 'low' : 'none',
+      ...(nextCapture.status === 'low_confidence' ? { failure_category: 'low_confidence' } : {}),
+      ...(nextCapture.status === 'camera_unavailable' ? { failure_category: 'camera_denied' } : {}),
+    })
     setStep(9)
+  }
+
+  function acceptConsent() {
+    trackAssessmentEvent('consent', { step_name: 'consent', outcome: 'accepted' })
+    completeStep(intake, 0)
   }
 
   if (!hydrated) {
@@ -264,11 +301,11 @@ export default function GuestAssessmentFlow() {
                 <PrivacyRow icon={<ShieldCheck size={18} />} text="You can stop at any time and later view, export, or delete saved data." />
               </div>
             </div>
-            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white p-4 text-sm leading-relaxed">
+            <label className="mb-20 mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white p-4 text-sm leading-relaxed">
               <input type="checkbox" checked={consented} onChange={event => setConsented(event.target.checked)} className="mt-0.5 h-5 w-5 accent-sage" />
               <span>I understand and agree to use my answers and camera-derived movement observations for this assessment.</span>
             </label>
-            <StickyAction disabled={!consented} onClick={() => completeStep(intake, 0)}>Start my free body assessment</StickyAction>
+            <StickyAction disabled={!consented} onClick={acceptConsent}>Start my free body assessment</StickyAction>
           </AssessmentScreen>
         )}
 

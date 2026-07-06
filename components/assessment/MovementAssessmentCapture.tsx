@@ -210,6 +210,7 @@ export default function MovementAssessmentCapture({
               formScoreSupported={false}
               fill
               overlayMode="minimal"
+              recoveryMode="external"
             />
             <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-3xl bg-black/65 p-4 backdrop-blur-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sage-light">{movement.view}</p>

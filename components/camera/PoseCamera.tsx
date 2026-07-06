@@ -100,6 +100,8 @@ interface Props {
   /** Profile landmarks used by the opt-in diagnostics panel. */
   trackingLandmarks?: number[]
   trackingMinVisibility?: number
+  /** Lets an assessment parent own retry/fallback actions without duplicate controls. */
+  recoveryMode?: 'internal' | 'external'
 }
 
 function loadScript(src: string): Promise<void> {
@@ -387,6 +389,7 @@ export default function PoseCamera({
   isFloorExercise = false, formScoreSupported = true,
   fill = false, overlayMode = 'full',
   cameraOrientation = 'either', trackingLandmarks = [], trackingMinVisibility = 0.5,
+  recoveryMode = 'internal',
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef     = useRef<HTMLVideoElement>(null)
@@ -882,16 +885,18 @@ export default function PoseCamera({
                 : "We couldn't start the camera. You can retry, or continue your workout without live AI feedback."}
             </p>
           </div>
-          <div className="flex flex-col gap-2 w-full max-w-[200px]">
-            <button onClick={startCamera}
-              className="w-full py-2.5 rounded-full bg-sage text-white text-xs font-semibold active:bg-sage-dark transition-colors">
-              Retry camera
-            </button>
-            <button onClick={() => { stopCamera(); setStatus('ready') }}
-              className="w-full py-2.5 rounded-full bg-white/10 text-white/70 text-xs font-medium active:bg-white/15 transition-colors">
-              Continue without camera
-            </button>
-          </div>
+          {recoveryMode === 'internal' && (
+            <div className="flex flex-col gap-2 w-full max-w-[200px]">
+              <button onClick={startCamera}
+                className="w-full py-2.5 rounded-full bg-sage text-white text-xs font-semibold active:bg-sage-dark transition-colors">
+                Retry camera
+              </button>
+              <button onClick={() => { stopCamera(); setStatus('ready') }}
+                className="w-full py-2.5 rounded-full bg-white/10 text-white/70 text-xs font-medium active:bg-white/15 transition-colors">
+                Continue without camera
+              </button>
+            </div>
+          )}
           <details className="text-left w-full max-w-[220px] mt-1">
             <summary className="text-white/35 text-xs cursor-pointer">How to enable camera</summary>
             <p className="text-white/35 text-xs mt-2 leading-relaxed">

@@ -49,6 +49,7 @@ describe('body assessment route contracts', () => {
 
   it('keeps shared capture free of persistence and exposes every outcome callback', () => {
     const capture = readFileSync(capturePath, 'utf8')
+    const poseCamera = readFileSync('components/camera/PoseCamera.tsx', 'utf8')
 
     assert.match(capture, /interface MovementAssessmentCaptureProps/)
     for (const callback of ['onComplete', 'onLowConfidence', 'onCameraUnavailable', 'onExit']) {
@@ -56,6 +57,8 @@ describe('body assessment route contracts', () => {
     }
     assert.match(capture, /constraints: MovementConstraint\[\]/)
     assert.match(capture, /PoseCamera/)
+    assert.match(capture, /recoveryMode="external"/)
+    assert.match(poseCamera, /recoveryMode === 'internal'/)
     assert.doesNotMatch(capture, /createClient|supabase|movement_observations|movement_assessments/i)
   })
 

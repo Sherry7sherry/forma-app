@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { useEffect } from 'react'
 import {
   AlertTriangle,
   ArrowRight,
@@ -14,18 +17,36 @@ import {
 } from 'lucide-react'
 
 import { partitionReportSections, type AssessmentReport, type AssessmentReportSection } from '@/lib/assessmentReport'
+import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 
 export default function AssessmentReportView({
   reportId,
   report,
   error,
   quickPlanId,
+  isMonthlyReview,
+  reportHistory,
 }: {
   reportId: string | null
   report: AssessmentReport | null
   error: string | null
   quickPlanId: string | null
+  isMonthlyReview: boolean
+  reportHistory: Array<{
+    id: string
+    version: number
+    generatedAt: string
+    changeSummary: string | null
+  }>
 }) {
+  useEffect(() => {
+    if (!report) return
+    trackAssessmentEvent('report_preview', { step_name: 'report', outcome: 'viewed' })
+    if (isMonthlyReview) {
+      trackAssessmentEvent('monthly_report_view', { step_name: 'monthly_report', outcome: 'viewed' })
+    }
+  }, [isMonthlyReview, report])
+
   if (!report) return <EmptyReport error={error} />
 
   const { free, paid } = partitionReportSections(report)
@@ -65,6 +86,24 @@ export default function AssessmentReportView({
           This report uses your questionnaire context and {evidenceCount} camera-derived movement observations. Conclusions require reliable evidence and compare only with your own future baseline.
         </p>
         <p className="mt-2 text-[11px] leading-relaxed text-muted">Raw video is not part of this report. Forma describes movement observations and does not provide a diagnosis.</p>
+      </section>
+
+      <section id="report-history" className="mx-5 mt-5 rounded-3xl border border-border bg-white p-5" aria-labelledby="report-history-heading">
+        <h2 id="report-history-heading" className="font-serif text-xl">Report history</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted">Saved versions stay available even if your plan or subscription changes.</p>
+        {reportHistory.length > 0 ? (
+          <ol className="mt-4 grid gap-2">
+            {reportHistory.map((item, index) => (
+              <li key={item.id} className="flex items-start justify-between gap-3 rounded-2xl bg-cream px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-charcoal">{index === 0 ? 'Current report' : `Report version ${item.version}`}</p>
+                  {item.changeSummary && <p className="mt-1 text-xs leading-relaxed text-muted">{item.changeSummary}</p>}
+                </div>
+                <time dateTime={item.generatedAt} className="flex-none text-[11px] text-muted">{formatDate(item.generatedAt)}</time>
+              </li>
+            ))}
+          </ol>
+        ) : <p className="mt-4 text-sm text-muted">No saved report versions yet.</p>}
       </section>
 
       {report.status === 'insufficient_evidence' && (

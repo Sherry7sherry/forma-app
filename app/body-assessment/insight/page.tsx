@@ -7,6 +7,7 @@ import { ArrowRight, Eye, Link2, ShieldCheck } from 'lucide-react'
 import { readGuestAssessment, type GuestAssessmentPayload } from '@/lib/assessmentIntake'
 import { bodyMirrorForGuestAssessment } from '@/lib/assessmentReport'
 import { evaluateCoaching } from '@/lib/coachingPolicy'
+import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 
 const WORK_CONTEXT: Record<string, string> = {
   sitting_under_4h: 'you spend part of the workday sitting',
@@ -45,6 +46,10 @@ export default function GuestInsightPage() {
     })
     return [...coaching.insights].sort((a, b) => b.confidence - a.confidence)[0] ?? null
   }, [payload])
+
+  useEffect(() => {
+    if (insight) trackAssessmentEvent('first_insight', { step_name: 'first_insight', outcome: 'viewed' })
+  }, [insight])
 
   if (!loaded) return <main className="min-h-dvh bg-cream" aria-label="Loading insight" />
 
@@ -89,7 +94,9 @@ export default function GuestInsightPage() {
           Your answers and derived observations are still only in this browser session. The next action gives consent to save them to your account.
         </div>
 
-        <Link href="/signup?next=%2Fbody-assessment%2Fsave" className="btn-primary mt-7 min-h-14 w-full text-center text-base">
+        <Link href="/signup?next=%2Fbody-assessment%2Fsave"
+          onClick={() => trackAssessmentEvent('registration_redirect', { step_name: 'registration', outcome: 'redirected' })}
+          className="btn-primary mt-7 min-h-14 w-full text-center text-base">
           Save my body starting point and view my report <ArrowRight size={17} aria-hidden="true" />
         </Link>
       </div>
