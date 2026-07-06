@@ -29,6 +29,7 @@ create table if not exists public.body_report_versions (
   evidence_refs      jsonb not null default '[]',
   change_summary     text,
   generated_at       timestamptz not null default now(),
+  unique (id, user_id),
   unique (assessment_id, user_id, report_version),
   foreign key (assessment_id, user_id)
     references public.movement_assessments (id, user_id)

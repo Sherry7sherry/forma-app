@@ -53,22 +53,22 @@ function isReport(value: unknown): value is AssessmentReport {
 export async function loadLatestReport(
   client: LatestReportClient,
   userId: string,
-): Promise<{ report: AssessmentReport | null; error: string | null }> {
+): Promise<{ reportId: string | null; report: AssessmentReport | null; error: string | null }> {
   const query = client.from('body_report_versions') as LatestReportQuery
   const result = await query
-    .select('report')
+    .select('id, report')
     .eq('user_id', userId)
     .order('generated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (result.error) return { report: null, error: 'Your body report is temporarily unavailable.' }
-  if (!result.data) return { report: null, error: null }
+  if (result.error) return { reportId: null, report: null, error: 'Your body report is temporarily unavailable.' }
+  if (!result.data) return { reportId: null, report: null, error: null }
   const row = result.data as Record<string, unknown>
-  if (!isReport(row.report)) {
-    return { report: null, error: 'Your body report is temporarily unavailable.' }
+  if (typeof row.id !== 'string' || !isReport(row.report)) {
+    return { reportId: null, report: null, error: 'Your body report is temporarily unavailable.' }
   }
-  return { report: row.report, error: null }
+  return { reportId: row.id, report: row.report, error: null }
 }
 
 export function partitionReportSections(report: AssessmentReport) {

@@ -40,10 +40,10 @@ function fakeClient(result: { data: unknown; error: { message: string } | null }
 
 describe('loadLatestReport', () => {
   it('loads only the current user latest generated report', async () => {
-    const client = fakeClient({ data: { report }, error: null })
+    const client = fakeClient({ data: { id: 'report-1', report }, error: null })
     const loaded = await loadLatestReport(client, 'user-1')
 
-    assert.deepEqual(loaded, { report, error: null })
+    assert.deepEqual(loaded, { reportId: 'report-1', report, error: null })
     assert.deepEqual(client.calls, [{
       table: 'body_report_versions', userId: 'user-1', order: 'generated_at', limit: 1,
     }])
@@ -51,7 +51,7 @@ describe('loadLatestReport', () => {
 
   it('treats missing, malformed, and query failures as recoverable', async () => {
     assert.deepEqual(await loadLatestReport(fakeClient({ data: null, error: null }), 'user-1'), {
-      report: null, error: null,
+      reportId: null, report: null, error: null,
     })
     assert.match((await loadLatestReport(fakeClient({ data: { report: { status: 'ready' } }, error: null }), 'user-1')).error ?? '', /unavailable/i)
     assert.match((await loadLatestReport(fakeClient({ data: null, error: { message: 'missing' } }), 'user-1')).error ?? '', /unavailable/i)
@@ -71,6 +71,8 @@ describe('body report page contracts', () => {
   it('loads the owned report and resolves Desk Reset on the server', () => {
     assert.match(page, /loadLatestReport\(.*user\.id/s)
     assert.match(page, /\.eq\('name', 'Desk Reset'\)/)
+    assert.match(page, /reportId=\{loaded\.reportId\}/)
+    assert.match(view, /intro=\$\{reportId\}/)
   })
 
   it('renders free story before personalized paid chapters', () => {

@@ -16,10 +16,12 @@ import {
 import { partitionReportSections, type AssessmentReport, type AssessmentReportSection } from '@/lib/assessmentReport'
 
 export default function AssessmentReportView({
+  reportId,
   report,
   error,
   quickPlanId,
 }: {
+  reportId: string | null
   report: AssessmentReport | null
   error: string | null
   quickPlanId: string | null
@@ -101,7 +103,7 @@ export default function AssessmentReportView({
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-sage-light">Start with the value moment</p>
               <h2 className="mt-2 font-serif text-2xl">Try the direction found today.</h2>
               <p className="mt-2 text-sm leading-relaxed text-white/72">Complete one gentle session, tell Forma how your body feels afterward, and see how the next recommendation adapts.</p>
-              <Link href={quickPlanId ? `/session/${quickPlanId}` : '/sessions'} className="mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3.5 text-sm font-semibold text-sage-dark">
+              <Link href={quickPlanId && reportId ? `/session/${quickPlanId}?intro=${reportId}` : '/sessions'} className="mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3.5 text-sm font-semibold text-sage-dark">
                 Try my first five-minute session <ArrowRight size={16} aria-hidden="true" />
               </Link>
               <Link href="/home" className="mt-2 inline-flex min-h-11 w-full items-center justify-center text-sm font-medium text-white/72">Continue with free</Link>

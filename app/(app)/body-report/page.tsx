@@ -16,6 +16,7 @@ export default async function BodyReportPage() {
 
   return (
     <AssessmentReportView
+      reportId={loaded.reportId}
       report={loaded.report}
       error={loaded.error}
       quickPlanId={quickPlanResult.data?.id ?? null}

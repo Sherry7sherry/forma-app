@@ -13,6 +13,7 @@ import { FLOOR_EXERCISE_NAMES, getExerciseTrackingProfile } from '@/lib/exercise
 import { hasTrackingCoverage, isWithinTrackingGrace, normalizedPoseDistance } from '@/lib/poseTracking'
 import { UpgradeButton } from '@/components/billing/BillingButton'
 import type { SessionBodyPolicy } from '@/lib/bodyMirror'
+import type { TrainingEntitlement } from '@/lib/subscriptionEntitlement'
 import type { SessionPlan } from '@/types'
 
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
@@ -34,6 +35,9 @@ interface Props {
   voiceCoachingEnabled: boolean
   sessionsThisWeek: number
   bodyPolicy: SessionBodyPolicy
+  entitlement: TrainingEntitlement
+  isPersonalizedIntro: boolean
+  reportId: string | null
   partialSession?: {
     id: string
     lastExerciseIndex: number
@@ -376,7 +380,7 @@ const DEFAULT_CUE = { start: 'Set up in your starting position', watch: 'Move sl
 // pose tracking to reliably detect a rep cycle (e.g. small internal
 // contractions, breath-driven movement). AI form feedback still runs for
 // these — only auto rep-counting is held back until it can be done well.
-export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, sessionsThisWeek, bodyPolicy, partialSession }: Props) {
+export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, sessionsThisWeek, bodyPolicy, entitlement, isPersonalizedIntro, reportId, partialSession }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
@@ -404,6 +408,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const [formScores, setFormScores]       = useState<number[]>([])
   const [saving, setSaving]               = useState(false)
   const [saveError, setSaveError]         = useState<string | null>(null)
+  const [postSessionFeeling, setPostSessionFeeling] = useState<'better' | 'unchanged' | 'worse' | null>(null)
+  const [savingPostSessionFeeling, setSavingPostSessionFeeling] = useState(false)
   const [showNameOverlay, setShowNameOverlay] = useState(false) // brief name shown when auto-starting
 
   // ── Camera-first calibration (Pro AI camera) ──────────────────
@@ -699,6 +705,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       .insert({
         user_id: userId,
         session_plan_id: plan.id,
+        report_id: reportId,
+        is_personalized_intro: isPersonalizedIntro,
         started_at: new Date().toISOString(),
         total_exercises: exercises.length,
         last_exercise_index: 0,
@@ -957,6 +965,24 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       setPhase('exit-confirm')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function savePostSessionFeeling(feeling: 'better' | 'unchanged' | 'worse') {
+    if (!recordId.current || savingPostSessionFeeling) return
+    setSavingPostSessionFeeling(true)
+    setSaveError(null)
+    try {
+      const result = await supabase.from('session_records')
+        .update({ post_session_response: feeling })
+        .eq('id', recordId.current)
+        .eq('user_id', userId)
+      assertSupabaseSuccess(result, 'Save post-session body feeling')
+      setPostSessionFeeling(feeling)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Unable to save how your body feels.')
+    } finally {
+      setSavingPostSessionFeeling(false)
     }
   }
 
@@ -1462,7 +1488,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             </div>
           )}
 
-          {!isPro && !isResume && (
+          {!isPro && !isResume && !isPersonalizedIntro && (
             <div className={`rounded-2xl px-4 py-3 text-xs w-full max-w-xs
               ${sessionsLeft === 0 ? 'bg-amber-500/15 border border-amber-400/30' : 'bg-white/8'}`}>
               <p className={`font-semibold mb-0.5 ${sessionsLeft === 0 ? 'text-amber-300' : 'text-white/70'}`}>
@@ -1495,7 +1521,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
               📷 How to set up my camera
             </button>
           )}
-          {sessionsLeft === 0 && !isPro ? (
+          {sessionsLeft === 0 && !isPro && !isPersonalizedIntro ? (
             <UpgradeButton plan="monthly"
               className="w-full bg-sage text-white rounded-full py-4 font-semibold text-base text-center
                          shadow-[0_4px_16px_rgba(122,158,142,.4)] block">
@@ -1867,7 +1893,41 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           </div>
         )}
 
-        {!isPro && (
+        {isPersonalizedIntro && fullyCompleted && !postSessionFeeling && (
+          <section className="mx-5 mt-4 card" aria-labelledby="post-session-feeling-heading">
+            <h2 id="post-session-feeling-heading" className="font-serif text-xl text-charcoal">How does your body feel now?</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted">This helps Forma adjust what comes next. Choose the closest answer.</p>
+            <div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-label="Post-session body feeling">
+              {([
+                ['better', 'Better'],
+                ['unchanged', 'Same'],
+                ['worse', 'Worse'],
+              ] as const).map(([value, label]) => (
+                <button key={value} type="button" disabled={savingPostSessionFeeling}
+                  onClick={() => savePostSessionFeeling(value)}
+                  className="min-h-12 rounded-2xl border border-sage/25 bg-sage/5 px-2 text-sm font-semibold text-sage-dark disabled:opacity-50">
+                  {label}
+                </button>
+              ))}
+            </div>
+            {saveError && <p role="alert" className="mt-3 text-xs text-rose-dark">{saveError}</p>}
+          </section>
+        )}
+
+        {isPersonalizedIntro && fullyCompleted && postSessionFeeling && !isPro && entitlement === 'allow_free_personalized' && (
+          <section className="mx-5 mt-4 rounded-3xl bg-sage-dark p-5 text-white shadow-soft" aria-labelledby="intro-trial-heading">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sage-light">Your first session is complete</p>
+            <h2 id="intro-trial-heading" className="mt-2 font-serif text-xl">Keep your plan adapting.</h2>
+            <p className="mt-2 text-xs leading-relaxed text-white/70">Start a seven-day trial to continue with personalized sessions and report updates.</p>
+            <form action="/api/stripe/checkout?plan=monthly&trial=true" method="post" className="mt-4">
+              <button type="submit" className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-white px-5 text-sm font-semibold text-sage-dark">
+                Start my seven-day trial
+              </button>
+            </form>
+          </section>
+        )}
+
+        {!isPro && !isPersonalizedIntro && (
           <div className="mx-5 mt-4 card border border-sage/30 bg-sage/5">
             <p className="font-serif text-base text-charcoal mb-1">Want real-time form feedback?</p>
             <p className="text-xs text-muted mb-3">Upgrade to Pro to unlock AI camera analysis.</p>

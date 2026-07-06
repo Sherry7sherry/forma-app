@@ -9,6 +9,7 @@ import { appEnv } from '@/lib/env'
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   const plan = searchParams.get('plan') as 'monthly' | 'yearly' | null
+  const trialRequested = searchParams.get('trial') === 'true'
 
   if (!plan || !['monthly', 'yearly'].includes(plan)) {
     return NextResponse.redirect(new URL('/profile', request.url), { status: 303 })
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('email, stripe_customer_id')
+    .select('email, stripe_customer_id, trial_started_at')
     .eq('id', user.id)
     .single()
 
@@ -47,6 +48,7 @@ export async function POST(request: Request) {
     ? PLANS.pro_monthly.priceId
     : PLANS.pro_yearly.priceId
 
+  const trialEligible = trialRequested && !profile?.trial_started_at
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',
@@ -57,8 +59,19 @@ export async function POST(request: Request) {
     metadata: { supabase_user_id: user.id },
     subscription_data: {
       metadata: { supabase_user_id: user.id },
+      ...(trialEligible ? { trial_period_days: 7 } : {}),
     },
-  })
+  }, trialEligible ? { idempotencyKey: `forma-trial-${user.id}` } : undefined)
+
+  if (trialEligible) {
+    const { error: trialUpdateError } = await supabase.from('user_profiles')
+      .update({ trial_started_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .is('trial_started_at', null)
+    if (trialUpdateError) {
+      return NextResponse.json({ error: 'Unable to record trial eligibility.' }, { status: 500 })
+    }
+  }
 
   return NextResponse.redirect(session.url!, { status: 303 })
 }
