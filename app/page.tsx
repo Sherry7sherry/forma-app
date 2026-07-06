@@ -26,14 +26,14 @@ export default function LandingPage() {
         <div className="inline-flex items-center gap-2 bg-sage/10 border border-sage/20
                         rounded-full px-4 py-1.5 text-xs font-semibold text-sage-dark
                         mb-6 uppercase tracking-widest">
-          Personal Body Mirror
+          AI Pilates Coach
         </div>
         <h1 className="font-serif text-4xl sm:text-5xl font-medium text-charcoal
                        leading-tight mb-5">
-          In four minutes, learn what kind of movement fits your body today.
+          An AI Pilates coach that learns your body.
         </h1>
         <p className="text-charcoal-mid text-lg leading-relaxed mb-8 max-w-md mx-auto">
-          Combine your body history, everyday habits, and three simple movements to see one free personal insight before you decide what comes next.
+          Start with a quick body assessment. Forma turns your body history, daily check-ins, and AI movement observations into personalized Pilates sessions that adapt as your body changes.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link href="/body-assessment"
@@ -42,7 +42,7 @@ export default function LandingPage() {
           </Link>
           <Link href="#how-it-works"
             className="btn-secondary py-4 px-8 text-base justify-center">
-            See how it works
+            See how Forma personalizes
           </Link>
         </div>
         <p className="text-muted text-xs mt-4">About four minutes · No mat · No account needed to start</p>
@@ -62,12 +62,12 @@ export default function LandingPage() {
           </div>
           {/* Session card */}
           <div className="mx-4 mb-4 rounded-2xl bg-gradient-to-br from-sage-dark to-[#3D6B5A] p-5">
-            <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-1">Today's session</p>
+            <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-1">Today&apos;s plan</p>
             <p className="font-serif text-lg text-white mb-3">Spinal Mobility & Deep Core</p>
             <div className="flex gap-3 text-white/65 text-xs mb-4">
               <span>⏱ 28 min</span>
               <span>⚡ Moderate</span>
-              <span>💚 Recovery</span>
+              <span>💚 Matched to today</span>
             </div>
             <div className="inline-flex items-center gap-2 bg-white text-sage-dark
                             rounded-full px-4 py-2 text-xs font-semibold">
@@ -116,7 +116,7 @@ export default function LandingPage() {
           </div>
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-2 mx-4 mb-5">
-            {[['Fresh','Body data'],['Personal','Baseline'],['2 wk','Recheck']].map(([v,l]) => (
+            {[['Today','Plan'],['Body','Mirror'],['Living','Report']].map(([v,l]) => (
               <div key={l} className="bg-white/8 rounded-xl py-2.5 text-center">
                 <div className="font-serif text-base text-white">{v}</div>
                 <div className="text-white/40 text-[9px]">{l}</div>
@@ -129,16 +129,16 @@ export default function LandingPage() {
       {/* ── How it works ── */}
       <section id="how-it-works" className="px-6 py-16 bg-cream-dark">
         <div className="max-w-2xl mx-auto">
-          <p className="text-xs font-semibold text-sage uppercase tracking-widest text-center mb-2">How it works</p>
+          <p className="text-xs font-semibold text-sage uppercase tracking-widest text-center mb-2">How Forma personalizes</p>
           <h2 className="font-serif text-3xl text-charcoal text-center mb-10">
-            Your AI coach watches so you don't have to guess
+            Built around your body, not a generic class library.
           </h2>
           <div className="flex flex-col gap-6">
             {[
-              { num: '01', title: 'Tell us your context', desc: 'Six quick choices cover goals, body focus, relevant history, habits, work pattern, and available time.' },
-              { num: '02', title: 'Set up your phone', desc: 'We tell you exactly where to place your phone for each session — side view, distance, height. No guessing.' },
-              { num: '03', title: 'Move with guidance', desc: 'Three simple movements create confidence-qualified observations without uploading raw video.' },
-              { num: '04', title: 'See your progress', desc: 'Track comfort, mobility, and movement control against your own baseline over time.' },
+              { num: '01', title: 'Body assessment', desc: 'Quick movement check + body history.' },
+              { num: '02', title: 'Today’s plan', desc: 'A session matched to how you feel now.' },
+              { num: '03', title: 'AI coaching', desc: 'Real-time cues as you practice.' },
+              { num: '04', title: 'Body progress', desc: 'Track comfort, mobility, and control.' },
             ].map(s => (
               <div key={s.num} className="flex gap-5 items-start">
                 <div className="font-serif text-3xl text-sage/30 font-medium flex-shrink-0 w-10">{s.num}</div>
@@ -154,18 +154,18 @@ export default function LandingPage() {
 
       {/* ── Features ── */}
       <section className="px-6 py-16 max-w-2xl mx-auto">
-        <p className="text-xs font-semibold text-sage uppercase tracking-widest text-center mb-2">Built for recovery</p>
+        <p className="text-xs font-semibold text-sage uppercase tracking-widest text-center mb-2">Personalized coaching</p>
         <h2 className="font-serif text-3xl text-charcoal text-center mb-10">
-          Not a generic fitness app
+          More than a Pilates video library
         </h2>
         <div className="grid grid-cols-2 gap-4">
           {[
-            { emoji: '📷', title: 'Real-time AI form', desc: 'MediaPipe pose detection scores your alignment as you move' },
-            { emoji: '🌿', title: 'Recovery-first', desc: 'Every session designed around healing, not just burning calories' },
-            { emoji: '🧍‍♀️', title: 'Posture & alignment', desc: 'Specific feedback on spine, hips, shoulders — what actually matters' },
-            { emoji: '📈', title: 'Visible progress', desc: 'Comfort, mobility, and movement control compared only with your baseline' },
-            { emoji: '🎯', title: 'Personalised plan', desc: '30 Pilates exercises sequenced to your goals and focus areas' },
-            { emoji: '💬', title: 'AI coach feedback', desc: 'Post-session summary written to your specific session performance' },
+            { emoji: '📷', title: 'AI movement feedback', desc: 'Camera-supported cues help you adjust as you move.' },
+            { emoji: '🧭', title: 'Today’s plan', desc: 'Short resets or full sessions based on your current body state.' },
+            { emoji: '🧍‍♀️', title: 'Body-aware training', desc: 'Sessions adapt around comfort, mobility, and control.' },
+            { emoji: '📈', title: 'Living body report', desc: 'See changes compared with your own baseline.' },
+            { emoji: '🎯', title: 'Personalized focus', desc: 'Plans reflect your goals, habits, and focus areas.' },
+            { emoji: '🌿', title: 'Safety-aware guidance', desc: 'Movement pauses or softens when your body signals caution.' },
           ].map(f => (
             <div key={f.title} className="card">
               <div className="text-2xl mb-3">{f.emoji}</div>
@@ -187,10 +187,10 @@ export default function LandingPage() {
           </svg>
         </div>
         <h2 className="font-serif text-3xl text-charcoal mb-4">
-          Ready to feel the difference?
+          Ready for Pilates that fits your body?
         </h2>
         <p className="text-charcoal-mid mb-8 max-w-sm mx-auto leading-relaxed">
-          Start with one clear body insight. Create an account only if you choose to save your starting point.
+          Start with one free assessment and see the first insight before creating your full plan.
         </p>
         <Link href="/body-assessment"
           className="btn-primary py-4 px-10 text-base justify-center inline-flex">

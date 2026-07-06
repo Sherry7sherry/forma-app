@@ -15,6 +15,7 @@
     "lib/stripeWebhook.test.ts",
     "lib/supabaseErrors.ts",
     "lib/supabaseErrors.test.ts",
+    "lib/aiPilatesPositioning.test.ts",
     "lib/authReturn.ts",
     "lib/authReturn.test.ts",
     "lib/supabaseClientEnv.test.ts",
