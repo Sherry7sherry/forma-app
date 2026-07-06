@@ -39,6 +39,9 @@ describe('guest choice-first assessment flow', () => {
     for (const label of ['Get to know you', 'Prepare assessment', 'Build report']) {
       assert.match(flow, new RegExp(label))
     }
+    assert.match(flow, /Pause today if you currently have:/)
+    assert.match(flow, /None of these apply/)
+    assert.doesNotMatch(flow, /One or more applies|Select what applies/)
     assert.match(flow, /screenAssessment\(/)
     assert.doesNotMatch(flow, /\d+% complete|question \d+ of/i)
   })

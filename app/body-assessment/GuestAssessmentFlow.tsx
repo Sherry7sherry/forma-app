@@ -214,6 +214,7 @@ export default function GuestAssessmentFlow() {
   }
 
   function toggleSafety(value: IntakeSafetySignal) {
+    setSafetyApplies(true)
     setIntake(current => ({
       ...current,
       safetySignals: current.safetySignals.includes(value)
@@ -377,16 +378,13 @@ export default function GuestAssessmentFlow() {
 
         {step === 7 && (
           <AssessmentScreen eyebrow="Safety check" title="Does any of this apply right now?" intro="Current signals determine whether movement should pause. An old injury by itself does not.">
-            <ChoiceList>
-              <ChoiceCard title="None of these" selected={safetyApplies === false} onClick={() => { setSafetyApplies(false); setIntake(current => ({ ...current, safetySignals: [] })) }} />
-              <ChoiceCard title="One or more applies" selected={safetyApplies === true} onClick={() => setSafetyApplies(true)} />
-            </ChoiceList>
-            {safetyApplies && (
-              <div className="mt-6 rounded-3xl border border-rose/25 bg-rose/10 p-4">
-                <p className="text-sm font-semibold">Select what applies</p>
-                <div className="mt-3 grid gap-2">{SAFETY_OPTIONS.map(([value, label]) => <ChoiceCard key={value} title={label} selected={intake.safetySignals.includes(value)} onClick={() => toggleSafety(value)} />)}</div>
-              </div>
-            )}
+            <div className="mt-7 rounded-3xl border border-rose/25 bg-rose/10 p-4">
+              <p className="text-sm font-semibold">Pause today if you currently have:</p>
+              <div className="mt-3 grid gap-2">{SAFETY_OPTIONS.map(([value, label]) => <ChoiceCard key={value} title={label} selected={intake.safetySignals.includes(value)} onClick={() => toggleSafety(value)} />)}</div>
+            </div>
+            <div className="mt-4">
+              <ChoiceCard title="None of these apply" selected={safetyApplies === false} onClick={() => { setSafetyApplies(false); setIntake(current => ({ ...current, safetySignals: [] })) }} />
+            </div>
             <StickyAction disabled={!canFinishSafety} onClick={finishScreening}>Check my assessment route</StickyAction>
           </AssessmentScreen>
         )}
