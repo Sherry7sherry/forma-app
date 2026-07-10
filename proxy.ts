@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { appEnv } from '@/lib/env'
 
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/body-assessment', '/body-assessment/insight', '/api/stripe/webhook']
+const PUBLIC_PATHS = ['/', '/en', '/zh', '/login', '/signup', '/body-assessment', '/body-assessment/insight', '/api/stripe/webhook']
 
 // Once a user has accepted the health disclaimer AND finished onboarding, those
 // flags never revert. We cache that fact in a cookie keyed to the user's id so
