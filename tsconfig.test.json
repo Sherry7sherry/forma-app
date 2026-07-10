@@ -26,6 +26,7 @@
     "lib/i18n/messages/zh-CN.ts",
     "lib/i18n/index.ts",
     "lib/i18n/resolve.test.ts",
+    "lib/i18n/publicPages.test.ts",
     "components/i18n/LanguageSelect.test.ts",
     "lib/poseCameraConfig.test.ts",
     "lib/repFeedback.test.ts",

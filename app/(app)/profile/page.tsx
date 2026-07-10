@@ -123,7 +123,7 @@ export default async function ProfilePage() {
           </div>
           <span className="text-border text-lg">›</span>
         </Link>
-        <a href="/api/account/export"
+        <Link href="/api/account/export" prefetch={false}
           className="flex items-center gap-3 px-4 py-3.5 active:bg-cream-dark transition-colors">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base bg-sage/15 flex-shrink-0">⬇️</div>
           <div className="flex-1">
@@ -131,7 +131,7 @@ export default async function ProfilePage() {
             <div className="text-xs text-muted">Download a JSON copy of your Forma records</div>
           </div>
           <span className="text-border text-lg">›</span>
-        </a>
+        </Link>
         <Link href="/profile/data-controls"
           className="flex items-center gap-3 px-4 py-3.5 active:bg-cream-dark transition-colors">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base bg-red-50 flex-shrink-0">🗑️</div>

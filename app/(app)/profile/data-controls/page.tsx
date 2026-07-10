@@ -15,7 +15,7 @@ export default async function DataControlsPage({
       <section className="mt-6 rounded-3xl border border-border bg-white p-5 shadow-card">
         <h2 className="font-serif text-xl">Export my data</h2>
         <p className="mt-2 text-xs leading-relaxed text-muted">The download includes your profile, body evidence, reports, and session history. Raw video is not stored and is not part of the export.</p>
-        <a href="/api/account/export" className="btn-secondary mt-5 w-full">Download JSON export</a>
+        <Link href="/api/account/export" prefetch={false} className="btn-secondary mt-5 w-full">Download JSON export</Link>
       </section>
 
       <section id="delete" className="mt-5 rounded-3xl border border-rose/30 bg-rose/5 p-5">
