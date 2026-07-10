@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import VoiceCoachingToggle from '@/components/profile/VoiceCoachingToggle'
+import LanguageSelect from '@/components/i18n/LanguageSelect'
 import { UpgradeButton, ManageBillingButton } from '@/components/billing/BillingButton'
 
 export default async function ProfilePage() {
@@ -9,7 +10,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('full_name, subscription_status, created_at, voice_coaching_enabled')
+    .select('full_name, subscription_status, created_at, voice_coaching_enabled, preferred_locale')
     .eq('id', user!.id)
     .single()
 
@@ -92,6 +93,7 @@ export default async function ProfilePage() {
           </div>
           <VoiceCoachingToggle userId={user!.id} initialEnabled={profile?.voice_coaching_enabled ?? true} />
         </div>
+        <LanguageSelect userId={user!.id} initialLocale={profile?.preferred_locale === 'zh-CN' ? 'zh-CN' : 'en-US'} />
         <SettingItem icon="📊" iconBg="bg-amber-100" label="Session difficulty" value="Moderate — coming soon" />
         <SettingItem icon="🔔" iconBg="bg-rose/15" label="Daily reminder" value="8:00 AM" toggle />
       </SettingGroup>
