@@ -10,6 +10,10 @@ import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import { formatDuration } from '@/lib/utils'
 import { createVoiceCoach, type VoiceCue } from '@/lib/voiceCoach'
 import { getCue } from '@/lib/coach/cues'
+import { fallbackSummary } from '@/lib/coach/fallbacks'
+import { requestSessionSummary } from '@/lib/coach/requestSummary'
+import { buildSummaryInput } from '@/lib/coach/summaryInput'
+import type { SessionSummary } from '@/lib/coach/types'
 import type { Locale } from '@/lib/i18n'
 import { FLOOR_EXERCISE_NAMES, getExerciseTrackingProfile } from '@/lib/exerciseTracking'
 import { hasTrackingCoverage, isWithinTrackingGrace, normalizedPoseDistance } from '@/lib/poseTracking'
@@ -439,6 +443,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const [saveError, setSaveError]         = useState<string | null>(null)
   const [postSessionFeeling, setPostSessionFeeling] = useState<'better' | 'unchanged' | 'worse' | null>(null)
   const [savingPostSessionFeeling, setSavingPostSessionFeeling] = useState(false)
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null)
   const [showNameOverlay, setShowNameOverlay] = useState(false) // brief name shown when auto-starting
 
   // ── Camera-first calibration (Pro AI camera) ──────────────────
@@ -987,6 +992,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // Use refs — endSession may be called from a stale closure inside advanceToNext
     const doneCnt    = completedExRef.current.length
     const allCompleted = doneCnt >= exercises.length - skippedExercises.length
+    const localSummary = fallbackSummary(buildSummaryInput({
+      locale,
+      formScore: avgScore,
+      durationSeconds: elapsed,
+      exercisesCompleted: doneCnt,
+      skippedExercises: skippedExercises.length,
+    }))
     try {
       if (recordId.current) {
         const result = await supabase.from('session_records').update({
@@ -998,9 +1010,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           total_exercises: exercises.length,
           is_partial: !allCompleted,
           skipped_exercises: skippedExercises.length,
-          ai_feedback: generateFeedback(avgScore),
+          ai_feedback: `${localSummary.headline}\n\n${localSummary.body}`,
         }).eq('id', recordId.current)
         assertSupabaseSuccess(result, 'Complete session')
+        setSessionSummary(localSummary)
+        void requestSessionSummary(recordId.current).then(result => {
+          if (result) setSessionSummary(result.summary)
+        })
       }
       setPhase('finished')
     } catch (err) {
@@ -1893,6 +1909,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // Use ref for count — state may lag one render behind after endSession sets phase
     const finalDoneCnt   = completedExRef.current.length
     const fullyCompleted = finalDoneCnt >= exercises.length - skippedExercises.length
+    const displayedSummary = sessionSummary ?? fallbackSummary(buildSummaryInput({
+      locale,
+      formScore: avgScore,
+      durationSeconds: elapsed,
+      exercisesCompleted: finalDoneCnt,
+      skippedExercises: skippedExercises.length,
+    }))
     return (
       <div className="min-h-dvh bg-cream flex flex-col">
         <div className={`px-6 pt-14 pb-8 relative overflow-hidden
@@ -1932,7 +1955,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 
         {fullyCompleted && (
           <div className="mx-5 mt-4 card border-l-4 border-l-sage pl-4">
-            <p className="text-sm text-charcoal-mid italic leading-relaxed">"{generateFeedback(avgScore)}"</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sage-dark">{displayedSummary.headline}</p>
+            <p className="mt-2 text-sm text-charcoal-mid italic leading-relaxed">"{displayedSummary.body}"</p>
             <p className="text-xs text-sage-dark font-semibold mt-2">— Forma AI Coach</p>
           </div>
         )}

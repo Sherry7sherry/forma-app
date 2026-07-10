@@ -38,6 +38,8 @@
     "lib/coach/providers/openai.ts",
     "lib/coach/providers/openai.test.ts",
     "lib/coach/sessionSummaryRoute.test.ts",
+    "lib/coach/requestSummary.ts",
+    "lib/coach/requestSummary.test.ts",
     "components/i18n/LanguageSelect.test.ts",
     "lib/poseCameraConfig.test.ts",
     "lib/repFeedback.test.ts",
