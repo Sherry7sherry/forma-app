@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { CameraOrientation } from '@/lib/exerciseTracking'
 import { visibleLandmarkCount } from '@/lib/poseTracking'
+import {
+  createDetectionGeometry,
+  detectionLandmarkToSource,
+  type DetectionGeometry,
+} from '@/lib/poseDetectionGeometry'
 
 // Full MediaPipe Pose connection set — face, arms, hands, torso, legs and feet.
 // The MVP draws the complete skeleton (MediaPipe POSE_CONNECTIONS) which reads as
@@ -57,6 +62,12 @@ export interface PoseResult {
 export interface PoseDiagnostics {
   sourceWidth: number
   sourceHeight: number
+  detectionWidth: number
+  detectionHeight: number
+  detectionScaleX: number
+  detectionScaleY: number
+  paddingX: number
+  paddingY: number
   detectionFps: number
   visibleLandmarks: number
   trackedLandmarks: number
@@ -66,6 +77,7 @@ export interface PoseDiagnostics {
   inputKind: 'video' | 'canvas'
   deviceClass: 'phone' | 'tablet' | 'desktop'
   orientation: 'portrait' | 'landscape'
+  modelComplexity: 0 | 1
 }
 
 interface Props {
@@ -102,6 +114,8 @@ interface Props {
   trackingMinVisibility?: number
   /** Lets an assessment parent own retry/fallback actions without duplicate controls. */
   recoveryMode?: 'internal' | 'external'
+  /** Assessments favor landmark recall; regular sessions retain the lighter mobile model. */
+  posePrecision?: 'standard' | 'assessment'
 }
 
 function loadScript(src: string): Promise<void> {
@@ -297,6 +311,34 @@ const FRAMING_GUIDANCE: Record<FramingStatus, { headline: string; tips: string[]
   'full-body': { headline: '', tips: [] },
 }
 
+const MOBILE_FRAMING_GUIDANCE: Record<FramingStatus, { headline: string; tips: string[] }> = {
+  'no-body': {
+    headline: "We can't see you yet",
+    tips: [
+      'Lower or tilt your phone downward so your head and feet are both visible',
+      'Move close enough that your body fills more of the screen',
+      'Improve lighting if the room is dim',
+    ],
+  },
+  'upper-body': {
+    headline: 'Only your upper body is visible',
+    tips: [
+      'Lower or tilt your phone downward until your feet enter the frame',
+      'Keep your head and feet visible while filling more of the screen',
+      'Prop the phone securely with the screen facing you',
+    ],
+  },
+  'partial': {
+    headline: "You're partially out of frame",
+    tips: [
+      'Lower or tilt your phone downward until your full body is visible',
+      'Center yourself and fill more of the screen without cutting off your feet',
+      'Improve lighting if the room is dim',
+    ],
+  },
+  'full-body': { headline: '', tips: [] },
+}
+
 /** Exercise-specific framing tips shown when the camera can't see the full body.
  *  These override the generic tips when the exercise name matches. */
 const EXERCISE_FRAMING_TIPS: Record<string, { headline: string; tips: string[] }> = {
@@ -377,8 +419,6 @@ const MOBILE_DETECT_INTERVAL_MS  = 280
 const DESKTOP_DRAW_INTERVAL_MS   = 33
 const TABLET_DRAW_INTERVAL_MS    = 50
 const MOBILE_DRAW_INTERVAL_MS    = 66
-const DETECTION_INPUT_WIDTH      = 640
-const DETECTION_INPUT_HEIGHT     = 480
 // How often (ms) to push new score / feedback / framing values into React state.
 // Keeps re-renders to ~3/sec instead of on every detection tick.
 const UI_UPDATE_INTERVAL_MS = 300
@@ -389,12 +429,13 @@ export default function PoseCamera({
   isFloorExercise = false, formScoreSupported = true,
   fill = false, overlayMode = 'full',
   cameraOrientation = 'either', trackingLandmarks = [], trackingMinVisibility = 0.5,
-  recoveryMode = 'internal',
+  recoveryMode = 'internal', posePrecision = 'standard',
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef     = useRef<HTMLVideoElement>(null)
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const detectionCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const detectionGeometryRef = useRef<DetectionGeometry | null>(null)
 
   const getDeviceInfo = (): {
     deviceClass: PoseDiagnostics['deviceClass']
@@ -415,6 +456,8 @@ export default function PoseCamera({
   const isDesktop = deviceInfo.deviceClass === 'desktop'
   const isTablet = deviceInfo.deviceClass === 'tablet'
   const isMobile = deviceInfo.deviceClass === 'phone'
+  const assessmentPrecision = posePrecision === 'assessment'
+  const modelComplexity: 0 | 1 = assessmentPrecision ? 1 : isMobile || isTablet ? 0 : 1
 
   // Start with the front camera on every device. It is the most reliable default
   // for mobile browsers and lets the user see setup/tracking feedback while
@@ -473,6 +516,12 @@ export default function PoseCamera({
   const [diagnostics,   setDiagnostics]   = useState<PoseDiagnostics>({
     sourceWidth: 0,
     sourceHeight: 0,
+    detectionWidth: 0,
+    detectionHeight: 0,
+    detectionScaleX: 0,
+    detectionScaleY: 0,
+    paddingX: 0,
+    paddingY: 0,
     detectionFps: 0,
     visibleLandmarks: 0,
     trackedLandmarks: trackingLandmarks.length,
@@ -482,6 +531,7 @@ export default function PoseCamera({
     inputKind: isMobile || isTablet ? 'canvas' : 'video',
     deviceClass: deviceInfo.deviceClass,
     orientation: deviceInfo.orientation,
+    modelComplexity,
   })
 
   const emitCameraStatus = useCallback((next: CameraLifecycleStatus) => {
@@ -528,22 +578,19 @@ export default function PoseCamera({
     const vh = video.videoHeight
     if (!vw || !vh) return video
 
+    const geometry = createDetectionGeometry(vw, vh)
+    detectionGeometryRef.current = geometry
     const canvas = detectionCanvasRef.current ?? document.createElement('canvas')
-    if (!detectionCanvasRef.current) {
-      canvas.width = DETECTION_INPUT_WIDTH
-      canvas.height = DETECTION_INPUT_HEIGHT
-      detectionCanvasRef.current = canvas
+    if (!detectionCanvasRef.current) detectionCanvasRef.current = canvas
+    if (canvas.width !== geometry.detectionWidth || canvas.height !== geometry.detectionHeight) {
+      canvas.width = geometry.detectionWidth
+      canvas.height = geometry.detectionHeight
     }
     const ctx = canvas.getContext('2d')
     if (!ctx) return video
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    const scale = Math.min(canvas.width / vw, canvas.height / vh)
-    const dw = vw * scale
-    const dh = vh * scale
-    const dx = (canvas.width - dw) / 2
-    const dy = (canvas.height - dh) / 2
-    ctx.drawImage(video, dx, dy, dw, dh)
+    ctx.drawImage(video, 0, 0, geometry.detectionWidth, geometry.detectionHeight)
     return canvas
   }, [isMobile, isTablet])
 
@@ -591,7 +638,11 @@ export default function PoseCamera({
 
   /** Handle a fresh pose-detection result — throttled before it reaches React state. */
   const handlePoseResults = useCallback((results: any) => {
-    const lm = results?.poseLandmarks ?? null
+    const rawLandmarks = results?.poseLandmarks ?? null
+    const geometry = detectionGeometryRef.current
+    const lm = rawLandmarks && geometry
+      ? rawLandmarks.map((landmark: any) => detectionLandmarkToSource(landmark, geometry))
+      : rawLandmarks
     lastLandmarksRef.current = lm
 
     const { status: framing, bodyConfidence } = classifyFraming(lm, isFloorExerciseRef.current)
@@ -635,6 +686,12 @@ export default function PoseCamera({
       const nextDiagnostics: PoseDiagnostics = {
         sourceWidth: videoRef.current?.videoWidth ?? 0,
         sourceHeight: videoRef.current?.videoHeight ?? 0,
+        detectionWidth: geometry?.detectionWidth ?? 0,
+        detectionHeight: geometry?.detectionHeight ?? 0,
+        detectionScaleX: geometry?.scaleX ?? 0,
+        detectionScaleY: geometry?.scaleY ?? 0,
+        paddingX: geometry?.paddingX ?? 0,
+        paddingY: geometry?.paddingY ?? 0,
         detectionFps: detectionWindow.fps,
         visibleLandmarks: visibleLandmarkCount(lm, trackingConfig.landmarks, trackingConfig.minVisibility),
         trackedLandmarks: trackingConfig.landmarks.length,
@@ -644,6 +701,7 @@ export default function PoseCamera({
         inputKind: currentDeviceInfo.deviceClass === 'phone' || currentDeviceInfo.deviceClass === 'tablet' ? 'canvas' : 'video',
         deviceClass: currentDeviceInfo.deviceClass,
         orientation: currentDeviceInfo.orientation,
+        modelComplexity,
       }
       setDiagnostics(nextDiagnostics)
       onPoseResultRef.current?.({
@@ -658,6 +716,12 @@ export default function PoseCamera({
       const nextDiagnostics: PoseDiagnostics = {
         sourceWidth: videoRef.current?.videoWidth ?? 0,
         sourceHeight: videoRef.current?.videoHeight ?? 0,
+        detectionWidth: geometry?.detectionWidth ?? 0,
+        detectionHeight: geometry?.detectionHeight ?? 0,
+        detectionScaleX: geometry?.scaleX ?? 0,
+        detectionScaleY: geometry?.scaleY ?? 0,
+        paddingX: geometry?.paddingX ?? 0,
+        paddingY: geometry?.paddingY ?? 0,
         detectionFps: detectionWindow.fps,
         visibleLandmarks: visibleLandmarkCount(lm, trackingConfig.landmarks, trackingConfig.minVisibility),
         trackedLandmarks: trackingConfig.landmarks.length,
@@ -667,6 +731,7 @@ export default function PoseCamera({
         inputKind: currentDeviceInfo.deviceClass === 'phone' || currentDeviceInfo.deviceClass === 'tablet' ? 'canvas' : 'video',
         deviceClass: currentDeviceInfo.deviceClass,
         orientation: currentDeviceInfo.orientation,
+        modelComplexity,
       }
       setDiagnostics(nextDiagnostics)
       onPoseResultRef.current?.({
@@ -674,7 +739,7 @@ export default function PoseCamera({
         diagnostics: nextDiagnostics,
       })
     }
-  }, [])
+  }, [modelComplexity])
 
   /** Persistent render+detection loop. The browser schedules us every animation
    *  frame, but on mobile we intentionally draw/detect less often to keep the
@@ -700,6 +765,7 @@ export default function PoseCamera({
       lastDebugUpdateAt.current = ts
       const lastPoseAt = lastPoseResultAtRef.current
       const video = videoRef.current
+      const geometry = detectionGeometryRef.current
       setDiagnostics(prev => ({
         ...prev,
         sourceWidth: video?.videoWidth ?? prev.sourceWidth,
@@ -707,6 +773,12 @@ export default function PoseCamera({
         poseResults: poseResultCountRef.current,
         lastPoseAgeMs: lastPoseAt ? Math.round(performance.now() - lastPoseAt) : null,
         inputKind: isMobile || isTablet ? 'canvas' : 'video',
+        detectionWidth: geometry?.detectionWidth ?? prev.detectionWidth,
+        detectionHeight: geometry?.detectionHeight ?? prev.detectionHeight,
+        detectionScaleX: geometry?.scaleX ?? prev.detectionScaleX,
+        detectionScaleY: geometry?.scaleY ?? prev.detectionScaleY,
+        paddingX: geometry?.paddingX ?? prev.paddingX,
+        paddingY: geometry?.paddingY ?? prev.paddingY,
       }))
     }
   }, [drawFrame, getDetectionImage, isMobile, isTablet])
@@ -764,7 +836,7 @@ export default function PoseCamera({
         locateFile: (f: string) => `${cdnBase}/${f}`,
       })
       pose.setOptions({
-        modelComplexity: isMobile || isTablet ? 0 : 1, smoothLandmarks: true,
+        modelComplexity, smoothLandmarks: true,
         enableSegmentation: false,
         minDetectionConfidence: isMobile || isTablet ? 0.5 : 0.6,
         minTrackingConfidence: isMobile || isTablet ? 0.5 : 0.6,
@@ -782,7 +854,7 @@ export default function PoseCamera({
       setStatus('error')
       emitCameraStatus('unavailable')
     }
-  }, [stopCamera, emitCameraStatus, handlePoseResults, loop, videoConstraints, isMobile, isTablet])
+  }, [stopCamera, emitCameraStatus, handlePoseResults, loop, videoConstraints, isMobile, isTablet, modelComplexity])
 
   /**
    * Switch between available cameras. Only the MediaStream is swapped —
@@ -829,7 +901,8 @@ export default function PoseCamera({
   const showSwitch = fill && status === 'ready' && cameraCount > 1
   // Exercise-specific framing guidance takes priority over the generic status message.
   const exerciseGuidance = exerciseName ? EXERCISE_FRAMING_TIPS[exerciseName] : undefined
-  const guidance = exerciseGuidance ?? FRAMING_GUIDANCE[framingStatus]
+  const deviceGuidance = isMobile || isTablet ? MOBILE_FRAMING_GUIDANCE : FRAMING_GUIDANCE
+  const guidance = exerciseGuidance ?? deviceGuidance[framingStatus]
   const adaptiveGuidanceTips = guidance.tips
   const needsLandscape = cameraOrientation === 'landscape' && deviceInfo.orientation === 'portrait'
   const sourceAspect = sourceSize.width / sourceSize.height
@@ -936,6 +1009,8 @@ export default function PoseCamera({
             <div className="absolute right-3 top-16 z-40 rounded-md bg-black/75 px-3 py-2 font-mono text-[10px] leading-relaxed text-white/80">
               <div>{diagnostics.deviceClass} · {diagnostics.orientation}</div>
               <div>{diagnostics.sourceWidth}×{diagnostics.sourceHeight} · input {diagnostics.inputKind} · {diagnostics.detectionFps.toFixed(1)} fps</div>
+              <div>detect {diagnostics.detectionWidth}×{diagnostics.detectionHeight} · model {diagnostics.modelComplexity}</div>
+              <div>scale {diagnostics.detectionScaleX.toFixed(3)}×{diagnostics.detectionScaleY.toFixed(3)} · pad {diagnostics.paddingX},{diagnostics.paddingY}</div>
               <div>pose results {diagnostics.poseResults} · last pose {diagnostics.lastPoseAgeMs ?? 'n/a'}ms</div>
               <div>points {diagnostics.visibleLandmarks}/{diagnostics.trackedLandmarks} · conf {diagnostics.bodyConfidence.toFixed(2)}</div>
               <div>{framingStatus}</div>

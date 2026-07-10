@@ -97,6 +97,7 @@ export default function MovementAssessmentCapture({
   const [stage, setStage] = useState<'setup' | 'capture'>('setup')
   const [cameraStatus, setCameraStatus] = useState<CameraLifecycleStatus>('loading')
   const [framingStatus, setFramingStatus] = useState<FramingStatus>('no-body')
+  const [deviceClass, setDeviceClass] = useState<PoseResult['diagnostics']['deviceClass']>('desktop')
   const [calibrated, setCalibrated] = useState(false)
   const [evidence, setEvidence] = useState<MovementEvidence>(EMPTY_EVIDENCE)
   const [checking, setChecking] = useState(false)
@@ -109,6 +110,7 @@ export default function MovementAssessmentCapture({
 
   const handlePoseResult = useCallback((result: PoseResult) => {
     setFramingStatus(result.framingStatus)
+    setDeviceClass(result.diagnostics.deviceClass)
     const now = Date.now()
     if (now - lastSampleAtRef.current < 180 || !result.landmarks.length) return
     lastSampleAtRef.current = now
@@ -240,17 +242,28 @@ export default function MovementAssessmentCapture({
               fill
               overlayMode="minimal"
               recoveryMode="external"
+              posePrecision="assessment"
             />
-            <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-3xl bg-black/65 p-4 backdrop-blur-sm">
+            <div className={`pointer-events-none absolute bg-black/65 backdrop-blur-sm ${
+              !calibrated ? 'left-auto right-3 top-16 max-w-[240px] rounded-2xl p-3' : 'inset-x-4 bottom-4 rounded-3xl p-4'
+            }`}>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sage-light">{movement.view}</p>
-              <p className="mt-1 text-sm leading-relaxed text-white">{movement.cue}</p>
-              {reducedRange && <p className="mt-1 text-xs text-sage-light">Stay inside your smaller comfortable range.</p>}
-              {singleArmCompare && <p className="mt-1 text-xs text-sage-light">Finish with the optional one-arm comparison.</p>}
+              <p className="mt-1 text-sm leading-relaxed text-white">
+                {calibrated ? movement.cue : framingStatus === 'full-body'
+                  ? 'Hold still for a moment while tracking stabilizes.'
+                  : deviceClass === 'phone'
+                    ? 'Lower or tilt your phone downward. Keep your head and feet visible and fill more of the screen.'
+                    : deviceClass === 'tablet'
+                      ? 'Lower or tilt your tablet downward so your head and feet stay visible.'
+                      : 'Tilt the screen or camera downward so your feet enter the frame. On a laptop, place it near hip height, about 2–3 m away.'}
+              </p>
+              {calibrated && reducedRange && <p className="mt-1 text-xs text-sage-light">Stay inside your smaller comfortable range.</p>}
+              {calibrated && singleArmCompare && <p className="mt-1 text-xs text-sage-light">Finish with the optional one-arm comparison.</p>}
               <p className="mt-2 text-xs text-white/55">
                 {!calibrated
                   ? framingStatus === 'full-body'
                     ? 'Calibrating… hold your full body steady in frame.'
-                    : 'Tilt the screen or camera downward so your feet enter the frame. On a laptop, place it near hip height, about 2–3 m away.'
+                    : 'Head and feet must remain visible before movement capture starts.'
                   : evidence.ready
                     ? 'Enough clear movement captured — finish when ready.'
                     : evidence.reason === 'range'

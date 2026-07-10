@@ -2,6 +2,49 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
+import {
+  createDetectionGeometry,
+  detectionLandmarkToSource,
+  sourceLandmarkToDetection,
+} from './poseDetectionGeometry.js'
+
+describe('pose detection geometry', () => {
+  it('keeps portrait and landscape sources in their native aspect without letterboxing', () => {
+    const portrait = createDetectionGeometry(480, 640)
+    assert.deepEqual(
+      { width: portrait.detectionWidth, height: portrait.detectionHeight },
+      { width: 480, height: 640 },
+    )
+    assert.equal(portrait.paddingX, 0)
+    assert.equal(portrait.paddingY, 0)
+    assert.equal(portrait.orientation, 'portrait')
+
+    const landscape = createDetectionGeometry(1280, 720)
+    assert.deepEqual(
+      { width: landscape.detectionWidth, height: landscape.detectionHeight },
+      { width: 640, height: 360 },
+    )
+    assert.ok(landscape.detectionWidth * landscape.detectionHeight <= 640 * 480)
+  })
+
+  it('round-trips source and detection landmarks in either orientation', () => {
+    for (const geometry of [
+      createDetectionGeometry(1080, 1920),
+      createDetectionGeometry(1920, 1080),
+    ]) {
+      const source = { x: 0.27, y: 0.83, z: -0.12, visibility: 0.91 }
+      const roundTrip = detectionLandmarkToSource(
+        sourceLandmarkToDetection(source, geometry),
+        geometry,
+      )
+      assert.ok(Math.abs(roundTrip.x - source.x) < 0.000001)
+      assert.ok(Math.abs(roundTrip.y - source.y) < 0.000001)
+      assert.equal(roundTrip.z, source.z)
+      assert.equal(roundTrip.visibility, source.visibility)
+    }
+  })
+})
+
 describe('PoseCamera tablet front-camera stability', () => {
   const source = readFileSync('components/camera/PoseCamera.tsx', 'utf8')
 
@@ -10,22 +53,27 @@ describe('PoseCamera tablet front-camera stability', () => {
     assert.doesNotMatch(source, /Try the rear camera for a wider field of view/)
   })
 
-  it('uses lighter tablet camera and pose settings for iPad Safari reliability', () => {
+  it('uses lighter default pose settings while allowing assessment precision after geometry is fixed', () => {
     assert.match(source, /isTablet\s*\?\s*\{\s*facingMode:\s*\{\s*ideal:\s*face\s*\},\s*width:\s*\{\s*ideal:\s*960\s*\},\s*height:\s*\{\s*ideal:\s*720\s*\}/)
-    assert.match(source, /modelComplexity:\s*isMobile \|\| isTablet \?\s*0\s*:\s*1/)
+    assert.match(source, /assessmentPrecision\s*\?\s*1/)
+    assert.match(source, /modelComplexity/)
     assert.match(source, /minDetectionConfidence:\s*isMobile \|\| isTablet \?\s*0\.5\s*:\s*0\.6/)
     assert.match(source, /minTrackingConfidence:\s*isMobile \|\| isTablet \?\s*0\.5\s*:\s*0\.6/)
     assert.match(source, /lastPoseAgeMs/)
     assert.match(source, /last pose/)
   })
 
-  it('normalizes mobile and tablet pose input through a fixed-size canvas', () => {
-    assert.match(source, /DETECTION_INPUT_WIDTH\s*=\s*640/)
-    assert.match(source, /DETECTION_INPUT_HEIGHT\s*=\s*480/)
+  it('normalizes mobile and tablet pose input through an orientation-aware canvas', () => {
+    assert.match(source, /createDetectionGeometry/)
+    assert.match(source, /canvas\.width\s*=\s*geometry\.detectionWidth/)
+    assert.match(source, /canvas\.height\s*=\s*geometry\.detectionHeight/)
     assert.match(source, /getDetectionImage/)
     assert.match(source, /isMobile \|\| isTablet/)
     assert.match(source, /poseRef\.current\.send\(\{\s*image:\s*getDetectionImage\(videoRef\.current\)/)
     assert.match(source, /inputKind/)
+    assert.match(source, /detectionLandmarkToSource/)
+    assert.match(source, /detectionWidth/)
+    assert.match(source, /paddingX/)
   })
 
   it('exposes optional camera lifecycle status without changing existing callers', () => {
@@ -63,6 +111,17 @@ describe('Movement assessment capture readiness', () => {
     assert.doesNotMatch(source, /disabled=\{sampleCount < 8/)
     assert.match(source, /disabled=\{!evidence\.ready/)
     assert.match(source, /validSampleCount/)
+  })
+
+  it('branches setup copy by device and never gives a phone laptop instructions', () => {
+    assert.match(source, /deviceClass === 'phone'/)
+    assert.match(source, /Lower or tilt your phone downward/i)
+    assert.match(source, /On a laptop/i)
+  })
+
+  it('keeps the foot area visible by moving the compact calibration prompt away from the bottom', () => {
+    assert.match(source, /!calibrated\s*\?\s*'[^']*top-/)
+    assert.match(source, /calibrated\s*\?\s*movement\.cue/)
   })
 })
 
