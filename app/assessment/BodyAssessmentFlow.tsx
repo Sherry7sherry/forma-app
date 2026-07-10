@@ -33,6 +33,21 @@ import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 type Stage = 'intro' | 'check_in' | 'capture' | 'fallback' | 'result'
 type ResultOutcome = 'completed' | 'low_confidence' | 'camera_unavailable' | 'safety_hold'
 
+const FAILURE_GUIDANCE: Record<AssessmentFailureReason, { title: string; body: string }> = {
+  insufficient_samples: {
+    title: 'We need a little more clear movement.',
+    body: 'Keep your full body in frame and complete the instructed repetitions before finishing.',
+  },
+  landmarks: {
+    title: 'Some key body points stayed out of view.',
+    body: 'Adjust the camera downward so your head and feet stay visible, with steady lighting and no persistent obstruction.',
+  },
+  range: {
+    title: 'We did not capture enough of the movement.',
+    body: 'Repeat the instructed motion through your comfortable range. You do not need to push beyond what feels comfortable.',
+  },
+}
+
 const COMFORT_OPTIONS = [1, 2, 3, 4, 5]
 const SAFETY_SIGNALS = [
   ['sharp_pain', 'Sharp pain'],
@@ -56,6 +71,7 @@ export default function BodyAssessmentFlow({ userId, kind }: { userId: string; k
   const [fallbackIndex, setFallbackIndex] = useState(0)
   const [fallbackAnswers, setFallbackAnswers] = useState<Record<string, string>>({})
   const [outcome, setOutcome] = useState<ResultOutcome | null>(null)
+  const [failureReason, setFailureReason] = useState<AssessmentFailureReason | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -172,6 +188,7 @@ export default function BodyAssessmentFlow({ userId, kind }: { userId: string; k
       })
       const saveResult = await supabaseRef.current.from('movement_assessments').update(completion).eq('id', assessmentId)
       assertSupabaseSuccess(saveResult, 'Save low-confidence assessment')
+      setFailureReason(result.reason)
       setOutcome('low_confidence')
       setStage('result')
     } catch (caught) {
@@ -253,6 +270,7 @@ export default function BodyAssessmentFlow({ userId, kind }: { userId: string; k
       setFallbackIndex(0)
       setFallbackAnswers({})
       setOutcome(null)
+      setFailureReason(null)
       await ensureAssessment()
       setStage('capture')
     } catch (caught) {
@@ -368,7 +386,7 @@ export default function BodyAssessmentFlow({ userId, kind }: { userId: string; k
         )}
 
         {stage === 'result' && outcome && (
-          <ResultView outcome={outcome} onRetry={() => void restart()} onDone={() => router.push('/home')} />
+          <ResultView outcome={outcome} failureReason={failureReason} onRetry={() => void restart()} onDone={() => router.push('/home')} />
         )}
       </div>
     </main>
@@ -388,7 +406,7 @@ function ErrorMessage({ message }: { message: string }) {
   return <p role="alert" className="mt-4 rounded-2xl bg-rose/15 p-3 text-sm font-medium text-rose-dark">{message}</p>
 }
 
-function ResultView({ outcome, onRetry, onDone }: { outcome: ResultOutcome; onRetry: () => void; onDone: () => void }) {
+function ResultView({ outcome, failureReason, onRetry, onDone }: { outcome: ResultOutcome; failureReason: AssessmentFailureReason | null; onRetry: () => void; onDone: () => void }) {
   const content = {
     completed: {
       icon: <CheckCircle2 size={28} />,
@@ -416,13 +434,16 @@ function ResultView({ outcome, onRetry, onDone }: { outcome: ResultOutcome; onRe
     },
   }[outcome]
   const retryable = outcome === 'low_confidence' || outcome === 'camera_unavailable'
+  const displayedContent = outcome === 'low_confidence' && failureReason
+    ? { ...content, ...FAILURE_GUIDANCE[failureReason] }
+    : content
   return (
     <section className="flex flex-1 flex-col justify-between px-5 pb-8 pt-8">
       <div>
-        <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${outcome === 'safety_hold' ? 'bg-rose/15 text-rose-dark' : 'bg-sage/15 text-sage-dark'}`}>{content.icon}</div>
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-sage-dark">{content.eyebrow}</p>
-        <h1 className="mt-2 font-serif text-3xl leading-tight">{content.title}</h1>
-        <p className="mt-4 text-sm leading-relaxed text-charcoal-mid">{content.body}</p>
+        <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${outcome === 'safety_hold' ? 'bg-rose/15 text-rose-dark' : 'bg-sage/15 text-sage-dark'}`}>{displayedContent.icon}</div>
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-sage-dark">{displayedContent.eyebrow}</p>
+        <h1 className="mt-2 font-serif text-3xl leading-tight">{displayedContent.title}</h1>
+        <p className="mt-4 text-sm leading-relaxed text-charcoal-mid">{displayedContent.body}</p>
       </div>
       <div className="mt-8 grid gap-2.5">
         {retryable && <button type="button" onClick={onRetry} className="btn-secondary w-full bg-white">Try assessment again</button>}

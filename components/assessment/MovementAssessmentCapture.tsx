@@ -4,10 +4,12 @@ import dynamic from 'next/dynamic'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, Camera, RefreshCw } from 'lucide-react'
 
-import type { CameraLifecycleStatus, PoseResult } from '@/components/camera/PoseCamera'
+import type { CameraLifecycleStatus, FramingStatus, PoseResult } from '@/components/camera/PoseCamera'
 import {
   deriveMovementObservations,
+  evaluateMovementEvidence,
   type AssessmentFailureReason,
+  type MovementEvidence,
   type AssessmentPoseSample,
   type DerivedObservation,
 } from '@/lib/bodyAssessment'
@@ -60,6 +62,15 @@ export const MOVEMENT_ASSESSMENT_ITEMS: MovementDefinition[] = [
   },
 ]
 
+const EMPTY_EVIDENCE: MovementEvidence = {
+  ready: false,
+  validSampleCount: 0,
+  totalSampleCount: 0,
+  validSampleRatio: 0,
+  reason: 'insufficient_samples',
+}
+const CALIBRATION_FRAMES = 3
+
 function hasConstraint(
   constraints: MovementConstraint[],
   movement: AssessmentMovement,
@@ -81,10 +92,13 @@ export default function MovementAssessmentCapture({
   const observationsRef = useRef<DerivedObservation[]>([])
   const confidencesRef = useRef<number[]>([])
   const lastSampleAtRef = useRef(0)
+  const stableFullBodyFramesRef = useRef(0)
   const [movementIndex, setMovementIndex] = useState(0)
   const [stage, setStage] = useState<'setup' | 'capture'>('setup')
   const [cameraStatus, setCameraStatus] = useState<CameraLifecycleStatus>('loading')
-  const [sampleCount, setSampleCount] = useState(0)
+  const [framingStatus, setFramingStatus] = useState<FramingStatus>('no-body')
+  const [calibrated, setCalibrated] = useState(false)
+  const [evidence, setEvidence] = useState<MovementEvidence>(EMPTY_EVIDENCE)
   const [checking, setChecking] = useState(false)
   const [singleArmCompare, setSingleArmCompare] = useState(false)
 
@@ -94,23 +108,38 @@ export default function MovementAssessmentCapture({
     && hasConstraint(constraints, movement.key, 'optional_single_arm_compare')
 
   const handlePoseResult = useCallback((result: PoseResult) => {
+    setFramingStatus(result.framingStatus)
     const now = Date.now()
     if (now - lastSampleAtRef.current < 180 || !result.landmarks.length) return
     lastSampleAtRef.current = now
+
+    if (!calibrated) {
+      if (result.framingStatus === 'full-body' && result.bodyConfidence >= 0.65) {
+        stableFullBodyFramesRef.current += 1
+        if (stableFullBodyFramesRef.current >= CALIBRATION_FRAMES) setCalibrated(true)
+      } else {
+        stableFullBodyFramesRef.current = 0
+      }
+      return
+    }
+
     samplesRef.current.push({
       capturedAt: now,
       bodyConfidence: result.bodyConfidence,
       landmarks: result.landmarks,
     })
     if (samplesRef.current.length > 90) samplesRef.current.shift()
-    setSampleCount(samplesRef.current.length)
-  }, [])
+    if (movement) setEvidence(evaluateMovementEvidence(movement.key, samplesRef.current))
+  }, [calibrated, movement])
 
   function openCamera() {
     samplesRef.current = []
     lastSampleAtRef.current = 0
-    setSampleCount(0)
+    stableFullBodyFramesRef.current = 0
+    setCalibrated(false)
+    setEvidence(EMPTY_EVIDENCE)
     setCameraStatus('loading')
+    setFramingStatus('no-body')
     setStage('capture')
   }
 
@@ -217,7 +246,17 @@ export default function MovementAssessmentCapture({
               <p className="mt-1 text-sm leading-relaxed text-white">{movement.cue}</p>
               {reducedRange && <p className="mt-1 text-xs text-sage-light">Stay inside your smaller comfortable range.</p>}
               {singleArmCompare && <p className="mt-1 text-xs text-sage-light">Finish with the optional one-arm comparison.</p>}
-              <p className="mt-2 text-xs text-white/55">{sampleCount < 8 ? 'Hold your full body in frame…' : 'Enough movement captured — finish when ready.'}</p>
+              <p className="mt-2 text-xs text-white/55">
+                {!calibrated
+                  ? framingStatus === 'full-body'
+                    ? 'Calibrating… hold your full body steady in frame.'
+                    : 'Tilt the screen or camera downward so your feet enter the frame. On a laptop, place it near hip height, about 2–3 m away.'
+                  : evidence.ready
+                    ? 'Enough clear movement captured — finish when ready.'
+                    : evidence.reason === 'range'
+                      ? 'Keep going through the instructed comfortable movement.'
+                      : `Capturing clear movement… ${evidence.validSampleCount} valid frames.`}
+              </p>
             </div>
           </div>
           <div className="bg-charcoal px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
@@ -229,7 +268,7 @@ export default function MovementAssessmentCapture({
                 <button type="button" onClick={onCameraUnavailable} className="btn-primary">Continue without camera</button>
               </div>
             ) : (
-              <button type="button" onClick={finishMovement} disabled={sampleCount < 8 || checking || cameraStatus !== 'ready'}
+              <button type="button" onClick={finishMovement} disabled={!evidence.ready || checking || cameraStatus !== 'ready'}
                 className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-45">
                 {checking ? 'Checking…' : 'Finish movement'}
               </button>

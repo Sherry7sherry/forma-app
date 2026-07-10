@@ -281,16 +281,16 @@ const FRAMING_GUIDANCE: Record<FramingStatus, { headline: string; tips: string[]
   'upper-body': {
     headline: "Only your upper body is visible",
     tips: [
-      "Move phone lower — we need to see your feet too",
-      "Move back until your full body is visible",
-      "We need to see you from head to feet",
+      "Tilt the screen or camera downward until your feet enter the frame",
+      "On a laptop, place the camera near hip height, about 2–3 m away",
+      "Keep your head and feet visible at the same time",
     ],
   },
   'partial': {
     headline: "You're partially out of frame",
     tips: [
-      "Move back until your full body is visible",
-      "Move phone lower or adjust the angle",
+      "Tilt the screen or camera downward until your feet enter the frame",
+      "On a laptop, place the camera near hip height, about 2–3 m away",
       "Improve lighting if the room is dim",
     ],
   },
@@ -466,6 +466,7 @@ export default function PoseCamera({
   const [framingStatus, setFramingStatus] = useState<FramingStatus>('no-body')
   const [facing,        setFacing]        = useState<'user' | 'environment'>(initialFacing)
   const [switching,     setSwitching]     = useState(false)
+  const [cameraCount,   setCameraCount]   = useState(0)
   const [sourceSize,    setSourceSize]    = useState({ width: 4, height: 3 })
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [debugEnabled,  setDebugEnabled]  = useState(false)
@@ -743,6 +744,12 @@ export default function PoseCamera({
         audio: false,
       })
       streamRef.current = stream
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        setCameraCount(devices.filter(device => device.kind === 'videoinput').length)
+      } catch {
+        setCameraCount(0)
+      }
       mirroredRef.current = face === 'user'
       const video = videoRef.current
       if (!video) throw new Error('Video element not ready')
@@ -778,7 +785,7 @@ export default function PoseCamera({
   }, [stopCamera, emitCameraStatus, handlePoseResults, loop, videoConstraints, isMobile, isTablet])
 
   /**
-   * Flip between the front and rear camera. Only the MediaStream is swapped —
+   * Switch between available cameras. Only the MediaStream is swapped —
    * the pose model and the render loop keep running, so there's no flicker and
    * no model reload. Mirroring follows the camera (front = mirrored selfie view,
    * rear = as-seen). On failure (e.g. device has only one camera) we keep the
@@ -819,7 +826,7 @@ export default function PoseCamera({
   }, [])
 
   const isFullBody = framingStatus === 'full-body'
-  const showSwitch = fill && status === 'ready'   // camera-first views get a flip button
+  const showSwitch = fill && status === 'ready' && cameraCount > 1
   // Exercise-specific framing guidance takes priority over the generic status message.
   const exerciseGuidance = exerciseName ? EXERCISE_FRAMING_TIPS[exerciseName] : undefined
   const guidance = exerciseGuidance ?? FRAMING_GUIDANCE[framingStatus]
@@ -997,7 +1004,7 @@ export default function PoseCamera({
                     💻 Laptop camera not recommended for floor exercises
                   </p>
                   <p className="text-white/85 text-[11px] mt-1 leading-snug">
-                    Use your phone's rear camera in landscape mode, propped 8–10 ft to the side at mat level.
+                    Use a phone in landscape mode, propped 8–10 ft to the side at mat level, with the screen visible.
                   </p>
                 </div>
               )}
@@ -1058,7 +1065,7 @@ export default function PoseCamera({
                     💻 Laptop camera not recommended for floor exercises
                   </p>
                   <p className="text-white/85 text-[11px] mt-1 leading-snug">
-                    Use your phone's rear camera in landscape mode, propped 8–10 ft to the side at mat level.
+                    Use a phone in landscape mode, propped 8–10 ft to the side at mat level, with the screen visible.
                   </p>
                 </div>
               )}

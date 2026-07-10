@@ -25,6 +25,22 @@ import {
   type GuestCaptureState,
   type IntakeSafetySignal,
 } from '@/lib/assessmentIntake'
+import type { AssessmentFailureReason } from '@/lib/bodyAssessment'
+
+const FAILURE_GUIDANCE: Record<AssessmentFailureReason, { title: string; body: string }> = {
+  insufficient_samples: {
+    title: 'We need a little more clear movement.',
+    body: 'Keep your full body in frame and complete the instructed repetitions before finishing.',
+  },
+  landmarks: {
+    title: 'Some key body points stayed out of view.',
+    body: 'Adjust the camera downward so your head and feet stay visible, with steady lighting and no persistent obstruction.',
+  },
+  range: {
+    title: 'We did not capture enough of the movement.',
+    body: 'Repeat the instructed motion through your comfortable range. You do not need to push beyond what feels comfortable.',
+  },
+}
 
 const GOALS = [
   ['ease_neck_shoulder_tension', 'Ease neck and shoulder tension'],
@@ -438,7 +454,9 @@ export default function GuestAssessmentFlow() {
         )}
 
         {step === 9 && capture?.status !== 'completed' && (
-          <AssessmentScreen eyebrow="Build report" title="We need a clearer camera read." intro="No numeric movement insight was created from this attempt. Your answers remain available in this browser session.">
+          <AssessmentScreen eyebrow="Build report"
+            title={capture?.status === 'low_confidence' ? FAILURE_GUIDANCE[capture.reason].title : 'Your movement mirror still needs a camera check.'}
+            intro={capture?.status === 'low_confidence' ? FAILURE_GUIDANCE[capture.reason].body : 'No numeric movement insight was created from this attempt. Your answers remain available in this browser session.'}>
             <div className="mt-7 rounded-3xl border border-sage/20 bg-white p-5 shadow-card">
               <RefreshCw size={26} className="text-sage-dark" aria-hidden="true" />
               <p className="mt-3 text-sm leading-relaxed text-charcoal-mid">Try again with your full body visible and steady lighting when you are ready.</p>

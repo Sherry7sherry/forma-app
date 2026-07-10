@@ -35,4 +35,46 @@ describe('PoseCamera tablet front-camera stability', () => {
     assert.match(source, /emitCameraStatus\('ready'\)/)
     assert.match(source, /emitCameraStatus\('unavailable'\)/)
   })
+
+  it('shows camera switching only when more than one video input exists', () => {
+    assert.match(source, /enumerateDevices\(\)/)
+    assert.match(source, /device\.kind === 'videoinput'/)
+    assert.match(source, /cameraCount > 1/)
+    assert.doesNotMatch(source, /flip between the front and rear camera/i)
+  })
+
+  it('gives desktop users actionable downward-angle and placement guidance', () => {
+    assert.match(source, /Tilt the screen or camera downward/i)
+    assert.match(source, /hip height/i)
+    assert.match(source, /2[–-]3 m/i)
+  })
+})
+
+describe('Movement assessment capture readiness', () => {
+  const source = readFileSync('components/assessment/MovementAssessmentCapture.tsx', 'utf8')
+
+  it('calibrates on stable full-body frames before collecting movement samples', () => {
+    assert.match(source, /calibrat/i)
+    assert.match(source, /framingStatus === 'full-body'/)
+    assert.match(source, /evaluateMovementEvidence/)
+  })
+
+  it('does not enable Finish from eight arbitrary samples', () => {
+    assert.doesNotMatch(source, /disabled=\{sampleCount < 8/)
+    assert.match(source, /disabled=\{!evidence\.ready/)
+    assert.match(source, /validSampleCount/)
+  })
+})
+
+describe('Assessment failure copy', () => {
+  const memberSource = readFileSync('app/assessment/BodyAssessmentFlow.tsx', 'utf8')
+  const guestSource = readFileSync('app/body-assessment/GuestAssessmentFlow.tsx', 'utf8')
+
+  it('maps each low-confidence reason to actionable retry guidance', () => {
+    for (const source of [memberSource, guestSource]) {
+      assert.match(source, /insufficient_samples/)
+      assert.match(source, /landmarks/)
+      assert.match(source, /range/)
+    }
+  })
 })

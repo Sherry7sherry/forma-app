@@ -18,6 +18,7 @@
     "lib/aiPilatesPositioning.test.ts",
     "lib/authReturn.ts",
     "lib/authReturn.test.ts",
+    "lib/signOutRoute.test.ts",
     "lib/supabaseClientEnv.test.ts",
     "lib/poseCameraConfig.test.ts",
     "lib/repFeedback.test.ts",

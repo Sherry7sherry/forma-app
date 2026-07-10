@@ -14,6 +14,8 @@ const REQUIRED_LANDMARKS: Record<BodyMirrorMovement, number[]> = {
 }
 
 const MIN_LANDMARK_VISIBILITY = 0.7
+const MIN_VALID_SAMPLES = 8
+const MIN_VALID_SAMPLE_RATIO = 0.6
 
 function average(values: number[]): number {
   return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0
@@ -52,6 +54,13 @@ function sampleConfidence(sample: AssessmentPoseSample, required: number[]): num
   return Math.min(sample.bodyConfidence, average(required.map(index => sample.landmarks[index]?.visibility ?? 0)))
 }
 
+function armRaiseSampleConfidence(sample: AssessmentPoseSample): number {
+  const torso = average([11, 12, 23, 24].map(index => sample.landmarks[index]?.visibility ?? 0))
+  const leftArm = average([11, 13, 15].map(index => sample.landmarks[index]?.visibility ?? 0))
+  const rightArm = average([12, 14, 16].map(index => sample.landmarks[index]?.visibility ?? 0))
+  return Math.min(sample.bodyConfidence, average([torso, Math.max(leftArm, rightArm)]))
+}
+
 function lowConfidence(
   samples: AssessmentPoseSample[],
   required: number[],
@@ -68,6 +77,21 @@ function hasCoverage(sample: AssessmentPoseSample, required: number[]): boolean 
   return sample.bodyConfidence >= BODY_MIRROR_CONFIDENCE_THRESHOLD
     && required.every(index => Boolean(sample.landmarks[index])
       && (sample.landmarks[index].visibility ?? 0) >= MIN_LANDMARK_VISIBILITY)
+}
+
+function hasMovementCoverage(movement: BodyMirrorMovement, sample: AssessmentPoseSample): boolean {
+  if (sample.bodyConfidence < 0.65) return false
+  if (movement !== 'side_arm_raise') return hasCoverage(sample, REQUIRED_LANDMARKS[movement])
+
+  const visible = (indices: number[]) => indices.every(index => Boolean(sample.landmarks[index])
+    && (sample.landmarks[index].visibility ?? 0) >= MIN_LANDMARK_VISIBILITY)
+  return visible([11, 12, 23, 24]) && (visible([11, 13, 15]) || visible([12, 14, 16]))
+}
+
+function movementConfidence(movement: BodyMirrorMovement, sample: AssessmentPoseSample): number {
+  return movement === 'side_arm_raise'
+    ? armRaiseSampleConfidence(sample)
+    : sampleConfidence(sample, REQUIRED_LANDMARKS[movement])
 }
 
 function observation(
@@ -168,16 +192,57 @@ function deriveRotation(samples: AssessmentPoseSample[], confidence: number): Mo
   }
 }
 
+export interface MovementEvidence {
+  ready: boolean
+  validSampleCount: number
+  totalSampleCount: number
+  validSampleRatio: number
+  reason: AssessmentFailureReason | null
+}
+
+function deriveFromValidSamples(
+  movement: BodyMirrorMovement,
+  samples: AssessmentPoseSample[],
+): MovementDerivation {
+  const required = REQUIRED_LANDMARKS[movement]
+  const confidence = average(samples.map(sample => movementConfidence(movement, sample)))
+  if (confidence < BODY_MIRROR_CONFIDENCE_THRESHOLD) return lowConfidence(samples, required, 'landmarks')
+  if (movement === 'side_arm_raise') return deriveArmRaise(samples, confidence)
+  if (movement === 'standing_roll_down') return deriveRollDown(samples, confidence)
+  return deriveRotation(samples, confidence)
+}
+
+export function evaluateMovementEvidence(
+  movement: BodyMirrorMovement,
+  samples: AssessmentPoseSample[],
+): MovementEvidence {
+  const validSamples = samples.filter(sample => hasMovementCoverage(movement, sample))
+  const validSampleRatio = samples.length ? validSamples.length / samples.length : 0
+  let reason: AssessmentFailureReason | null = null
+
+  if (samples.length < MIN_VALID_SAMPLES) reason = 'insufficient_samples'
+  else if (validSampleRatio < MIN_VALID_SAMPLE_RATIO) reason = 'landmarks'
+  else if (validSamples.length < MIN_VALID_SAMPLES) reason = 'insufficient_samples'
+  else {
+    const derived = deriveFromValidSamples(movement, validSamples)
+    if (derived.status === 'low_confidence') reason = derived.reason
+  }
+
+  return {
+    ready: reason === null,
+    validSampleCount: validSamples.length,
+    totalSampleCount: samples.length,
+    validSampleRatio: round(validSampleRatio),
+    reason,
+  }
+}
+
 export function deriveMovementObservations(
   movement: BodyMirrorMovement,
   samples: AssessmentPoseSample[],
 ): MovementDerivation {
   const required = REQUIRED_LANDMARKS[movement]
-  if (samples.length < 2) return lowConfidence(samples, required, 'insufficient_samples')
-  if (!samples.every(sample => hasCoverage(sample, required))) return lowConfidence(samples, required, 'landmarks')
-  const confidence = average(samples.map(sample => sampleConfidence(sample, required)))
-  if (confidence < BODY_MIRROR_CONFIDENCE_THRESHOLD) return lowConfidence(samples, required, 'landmarks')
-  if (movement === 'side_arm_raise') return deriveArmRaise(samples, confidence)
-  if (movement === 'standing_roll_down') return deriveRollDown(samples, confidence)
-  return deriveRotation(samples, confidence)
+  const evidence = evaluateMovementEvidence(movement, samples)
+  if (!evidence.ready) return lowConfidence(samples, required, evidence.reason ?? 'insufficient_samples')
+  return deriveFromValidSamples(movement, samples.filter(sample => hasMovementCoverage(movement, sample)))
 }

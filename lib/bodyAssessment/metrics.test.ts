@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 
 import type { BodyMirrorMovement } from '../bodyMirror/types'
 import type { AssessmentPoseSample, PoseLandmark } from './types'
-import { deriveMovementObservations } from './metrics'
+import { deriveMovementObservations, evaluateMovementEvidence } from './metrics'
 
 function pose(overrides: Record<number, Partial<PoseLandmark>> = {}): PoseLandmark[] {
   const landmarks: PoseLandmark[] = Array.from(
@@ -37,22 +37,25 @@ function sample(capturedAt: number, overrides: Record<number, Partial<PoseLandma
 
 function fixtureSamples(movement: BodyMirrorMovement): AssessmentPoseSample[] {
   if (movement === 'side_arm_raise') {
-    return [
+    const cycle = [
       sample(0, { 11: { x: 0.5 }, 12: { x: 0.52 }, 13: { x: 0.5, y: 0.47 }, 14: { x: 0.52, y: 0.47 }, 15: { x: 0.5, y: 0.62 }, 16: { x: 0.52, y: 0.62 } }),
       sample(500, { 11: { x: 0.5 }, 12: { x: 0.52 }, 13: { x: 0.48, y: 0.20 }, 14: { x: 0.50, y: 0.20 }, 15: { x: 0.46, y: 0.06 }, 16: { x: 0.48, y: 0.06 } }),
     ]
+    return Array.from({ length: 10 }, (_, index) => ({ ...cycle[index % 2], capturedAt: index * 200 }))
   }
   if (movement === 'standing_roll_down') {
-    return [
+    const cycle = [
       sample(0),
       sample(500, { 11: { y: 0.52 }, 12: { y: 0.52 }, 15: { y: 0.94 }, 16: { y: 0.94 } }),
     ]
+    return Array.from({ length: 10 }, (_, index) => ({ ...cycle[index % 2], capturedAt: index * 200 }))
   }
-  return [
+  const cycle = [
     sample(0),
     sample(500, { 11: { x: 0.47, z: -0.12 }, 12: { x: 0.53, z: 0.12 }, 23: { x: 0.445 }, 24: { x: 0.555 } }),
     sample(1000, { 11: { x: 0.47, z: 0.12 }, 12: { x: 0.53, z: -0.12 }, 23: { x: 0.445 }, 24: { x: 0.555 } }),
   ]
+  return Array.from({ length: 12 }, (_, index) => ({ ...cycle[index % 3], capturedAt: index * 200 }))
 }
 
 describe('deriveMovementObservations', () => {
@@ -98,5 +101,58 @@ describe('deriveMovementObservations', () => {
 
     const still = [sample(0), sample(500), sample(1000)]
     assert.equal(deriveMovementObservations('seated_trunk_rotation', still).status, 'low_confidence')
+  })
+
+  it('ignores preparation frames and a small number of transient tracking drops', () => {
+    const good = Array.from({ length: 10 }, (_, index) => ({
+      ...fixtureSamples('side_arm_raise')[index % 2],
+      capturedAt: 1_000 + index * 200,
+    }))
+    const preparation = Array.from({ length: 5 }, (_, index) => sample(index * 200, {}, 0.25))
+    const transientDrop = sample(3_200, { 11: { visibility: 0.1 }, 12: { visibility: 0.1 } }, 0.4)
+    const result = deriveMovementObservations('side_arm_raise', [...preparation, ...good, transientDrop])
+    assert.equal(result.status, 'reliable')
+  })
+
+  it('rejects a capture when bad frames are the majority', () => {
+    const good = Array.from({ length: 6 }, (_, index) => ({
+      ...fixtureSamples('standing_roll_down')[index % 2],
+      capturedAt: index * 200,
+    }))
+    const obscured = Array.from({ length: 10 }, (_, index) => sample(
+      2_000 + index * 200,
+      { 15: { visibility: 0.1 }, 16: { visibility: 0.1 }, 27: { visibility: 0.1 }, 28: { visibility: 0.1 } },
+      0.55,
+    ))
+    const result = deriveMovementObservations('standing_roll_down', [...good, ...obscured])
+    assert.equal(result.status, 'low_confidence')
+    if (result.status === 'low_confidence') assert.equal(result.reason, 'landmarks')
+  })
+
+  it('accepts side-view arm overlap when the torso and one complete arm remain readable', () => {
+    const samples = Array.from({ length: 10 }, (_, index) => {
+      const base = fixtureSamples('side_arm_raise')[index % 2]
+      return {
+        ...base,
+        capturedAt: index * 200,
+        landmarks: base.landmarks.map((point, landmarkIndex) =>
+          [14, 16].includes(landmarkIndex) ? { ...point, visibility: 0.28 } : point),
+      }
+    })
+    assert.equal(deriveMovementObservations('side_arm_raise', samples).status, 'reliable')
+  })
+
+  it('requires enough valid frames and movement range before evidence is ready', () => {
+    const arbitrary = Array.from({ length: 8 }, (_, index) => sample(index * 200))
+    const notReady = evaluateMovementEvidence('side_arm_raise', arbitrary)
+    assert.equal(notReady.validSampleCount, 8)
+    assert.equal(notReady.ready, false)
+    assert.equal(notReady.reason, 'range')
+
+    const moving = Array.from({ length: 10 }, (_, index) => ({
+      ...fixtureSamples('side_arm_raise')[index % 2],
+      capturedAt: index * 200,
+    }))
+    assert.equal(evaluateMovementEvidence('side_arm_raise', moving).ready, true)
   })
 })
