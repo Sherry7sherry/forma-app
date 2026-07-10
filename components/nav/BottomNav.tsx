@@ -2,11 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useLocale } from '@/components/i18n/LocaleProvider'
+import { translate, type MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
   {
-    href: '/home', label: 'Home',
+    href: '/home', labelKey: 'nav.home' as MessageKey,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
            stroke={active ? '#7A9E8E' : '#8A8A8A'} strokeWidth="2"
@@ -17,7 +19,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: '/sessions', label: 'Sessions',
+    href: '/sessions', labelKey: 'nav.sessions' as MessageKey,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
            stroke={active ? '#7A9E8E' : '#8A8A8A'} strokeWidth="2"
@@ -29,7 +31,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: '/progress', label: 'Progress',
+    href: '/progress', labelKey: 'nav.progress' as MessageKey,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
            stroke={active ? '#7A9E8E' : '#8A8A8A'} strokeWidth="2"
@@ -39,7 +41,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: '/profile', label: 'Profile',
+    href: '/profile', labelKey: 'nav.profile' as MessageKey,
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
            stroke={active ? '#7A9E8E' : '#8A8A8A'} strokeWidth="2"
@@ -53,6 +55,7 @@ const NAV_ITEMS = [
 
 export default function BottomNav() {
   const path = usePathname()
+  const locale = useLocale()
 
   // Hide on session pages
   if (path.startsWith('/session/')) return null
@@ -75,7 +78,7 @@ export default function BottomNav() {
                 {item.icon(active)}
               </div>
               <span className={cn('text-[11px] font-medium', active ? 'text-sage' : 'text-muted')}>
-                {item.label}
+                {translate(locale, item.labelKey)}
               </span>
             </Link>
           )

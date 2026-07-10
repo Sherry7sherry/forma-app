@@ -50,6 +50,18 @@ npm install
 > When in doubt, re-run `000_full_setup.sql` — it reconciles the database to the
 > schema the code expects.
 
+### Bilingual AI Coach migration
+
+The bilingual coach release also requires:
+
+```sql
+supabase/migrations/010_bilingual_ai_coach_v1.sql
+```
+
+Run it through the same Supabase SQL/migration workflow before using language
+preferences or coach recaps in a shared environment. It adds the constrained
+`user_profiles.preferred_locale` field and session recap provenance fields.
+
 ---
 
 ### 3. Set up Stripe
@@ -73,6 +85,22 @@ cp .env.local.example .env.local
 ```
 
 Fill in all values in `.env.local`.
+
+For bilingual post-session coach recaps, also set the server-only values below
+in local and production environments. Do **not** prefix them with
+`NEXT_PUBLIC_`; they must never be exposed to the browser bundle.
+
+```bash
+OPENAI_API_KEY=
+OPENAI_COACH_MODEL=
+```
+
+Restart the local dev server or redeploy after changing server environment
+values.
+
+V1 live voice cues still use browser SpeechSynthesis, with tone/haptic fallback
+when speech or a locale-matched voice is unavailable. Cloud/premium TTS is not
+enabled in this release.
 
 ---
 

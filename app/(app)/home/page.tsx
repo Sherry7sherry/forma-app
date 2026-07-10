@@ -5,6 +5,7 @@ import BodyCheckInSheet from '@/components/body-mirror/BodyCheckInSheet'
 import BodyMirrorDimensions from '@/components/body-mirror/BodyMirrorDimensions'
 import { UpgradeButton } from '@/components/billing/BillingButton'
 import { formatSafetySignals, loadBodyMirrorForUser, type SafetySignal } from '@/lib/bodyMirror'
+import type { Locale } from '@/lib/i18n'
 import { createClient } from '@/lib/supabase/server'
 import { getDayName, getGreeting, startOfWeekISO } from '@/lib/utils'
 
@@ -28,7 +29,7 @@ export default async function HomePage() {
     { data: fullPlans },
     { data: weeklySessions },
   ] = await Promise.all([
-    supabase.from('user_profiles').select('full_name, subscription_status').eq('id', userId).single(),
+    supabase.from('user_profiles').select('full_name, subscription_status, preferred_locale').eq('id', userId).single(),
     loadBodyMirrorForUser(supabase, userId),
     supabase.from('session_plans')
       .select('id, name, description, duration_minutes, difficulty')
@@ -52,6 +53,7 @@ export default async function HomePage() {
   const sessionsLeft = Math.max(0, 3 - completedThisWeek)
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
   const isPro = profile?.subscription_status === 'pro' || profile?.subscription_status === 'founding'
+  const locale: Locale = profile?.preferred_locale === 'zh-CN' ? 'zh-CN' : 'en-US'
 
   return (
     <div className="fade-up pb-6">
@@ -132,6 +134,7 @@ export default async function HomePage() {
               safetySignals={bodyMirror.safety.signals}
               quickPlan={quickPlan as SessionPlanSummary | null}
               fullPlan={fullPlan}
+              locale={locale}
             />
           </div>
         </section>
@@ -144,7 +147,7 @@ export default async function HomePage() {
               <h2 id="check-in-heading" className="text-sm font-semibold text-charcoal">Keep today current</h2>
               <p className="mt-1 text-xs leading-relaxed text-charcoal-mid">A self check-in works even when the camera is unavailable.</p>
             </div>
-            <BodyCheckInSheet userId={userId} label={bodyMirror.checkInAsOf ? 'Update' : 'Check in'}
+            <BodyCheckInSheet userId={userId} locale={locale} label={bodyMirror.checkInAsOf ? 'Update' : 'Check in'}
               className="btn-secondary flex-shrink-0 bg-white px-4 py-2.5" />
           </div>
         </section>
@@ -162,8 +165,9 @@ export default async function HomePage() {
   )
 }
 
-function RecommendationActions({ userId, mode, safetySignals, quickPlan, fullPlan }: {
+function RecommendationActions({ userId, mode, safetySignals, quickPlan, fullPlan, locale = 'en-US' }: {
   userId: string
+  locale?: Locale
   mode: 'baseline' | 'check_in' | 'quick' | 'full' | 'reassess' | 'pause'
   safetySignals: SafetySignal[]
   quickPlan: SessionPlanSummary | null
@@ -177,6 +181,7 @@ function RecommendationActions({ userId, mode, safetySignals, quickPlan, fullPla
           {formatSafetySignals(safetySignals)}
         </div>
         <BodyCheckInSheet userId={userId}
+          locale={locale}
           label="Retake safety check-in"
           className="btn-primary w-full" />
       </div>
@@ -186,6 +191,7 @@ function RecommendationActions({ userId, mode, safetySignals, quickPlan, fullPla
     return (
       <div className="mt-5">
         <BodyCheckInSheet userId={userId}
+          locale={locale}
           label="Start 15-second check-in"
           className="btn-primary w-full" />
       </div>

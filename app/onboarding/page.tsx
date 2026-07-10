@@ -5,9 +5,15 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import type { Goal, ExperienceLevel, FocusArea } from '@/types'
+import type { Locale } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-const STEPS = 3
+const STEPS = 4
+
+const LANGUAGE_OPTIONS: { locale: Locale; label: string; desc: string }[] = [
+  { locale: 'en-US', label: 'English', desc: 'Use English for app screens, voice cues, and coach summaries.' },
+  { locale: 'zh-CN', label: '中文', desc: '使用中文显示界面、语音提示和训练总结。' },
+]
 
 const GOALS: { id: Goal; emoji: string; name: string; desc: string }[] = [
   { id: 'recovery',    emoji: '🌿', name: 'Recovery',    desc: 'Heal after injury, birth, or surgery' },
@@ -47,6 +53,7 @@ function OnboardingForm() {
   const supabase     = createClient()
 
   const [step, setStep]           = useState(1)
+  const [locale, setLocale]       = useState<Locale | null>(null)
   const [goals, setGoals]         = useState<Goal[]>([])
   const [level, setLevel]         = useState<ExperienceLevel | null>(null)
   const [focusAreas, setFocusAreas] = useState<FocusArea[]>([])
@@ -64,6 +71,8 @@ function OnboardingForm() {
     setSaving(true)
     setError(null)
     try {
+      if (!locale) throw new Error('Choose a language before continuing.')
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Please sign in again before finishing onboarding.')
 
@@ -77,7 +86,7 @@ function OnboardingForm() {
       assertSupabaseSuccess(onboardingResult, 'Save onboarding')
 
       const profileResult = await supabase.from('user_profiles')
-        .update({ onboarding_completed: true })
+        .update({ onboarding_completed: true, preferred_locale: locale })
         .eq('id', user.id)
       assertSupabaseSuccess(profileResult, 'Complete onboarding')
 
@@ -120,10 +129,42 @@ function OnboardingForm() {
         <div className="w-12"/>
       </div>
 
-      {/* Step 1 — Goals */}
+      {/* Step 1 — Language */}
       {step === 1 && (
         <div className="flex-1 px-5 pt-8 pb-32 fade-up">
-          <p className="text-xs font-semibold text-sage uppercase tracking-widest mb-2">Step 1 of 3</p>
+          <p className="text-xs font-semibold text-sage uppercase tracking-widest mb-2">Step 1 of 4</p>
+          <h2 className="font-serif text-2xl font-medium mb-2">Choose your coaching language</h2>
+          <p className="text-muted text-sm mb-8">Forma will use this for your app, voice cues, and coach summaries.</p>
+          <div className="flex flex-col gap-3">
+            {LANGUAGE_OPTIONS.map(option => (
+              <button
+                key={option.locale}
+                type="button"
+                onClick={() => setLocale(option.locale)}
+                className={cn(
+                  'border rounded-2xl p-4 text-left cursor-pointer transition-all duration-200 active:scale-[.98] flex items-center gap-4',
+                  locale === option.locale ? 'border-sage bg-sage/7' : 'border-border bg-white'
+                )}>
+                <div className={cn(
+                  'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all',
+                  locale === option.locale ? 'border-sage bg-sage' : 'border-border'
+                )}>
+                  {locale === option.locale && <div className="w-2 h-2 rounded-full bg-white"/>}
+                </div>
+                <div>
+                  <div className="font-semibold text-sm text-charcoal">{option.label}</div>
+                  <div className="text-xs text-muted mt-0.5">{option.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Step 2 — Goals */}
+      {step === 2 && (
+        <div className="flex-1 px-5 pt-8 pb-32 fade-up">
+          <p className="text-xs font-semibold text-sage uppercase tracking-widest mb-2">Step 2 of 4</p>
           <h2 className="font-serif text-2xl font-medium mb-2">What are your goals?</h2>
           <p className="text-muted text-sm mb-8">Choose everything that feels right.</p>
           <div className="grid grid-cols-2 gap-3">
@@ -153,10 +194,10 @@ function OnboardingForm() {
         </div>
       )}
 
-      {/* Step 2 — Experience Level */}
-      {step === 2 && (
+      {/* Step 3 — Experience Level */}
+      {step === 3 && (
         <div className="flex-1 px-5 pt-8 pb-32 fade-up">
-          <p className="text-xs font-semibold text-sage uppercase tracking-widest mb-2">Step 2 of 3</p>
+          <p className="text-xs font-semibold text-sage uppercase tracking-widest mb-2">Step 3 of 4</p>
           <h2 className="font-serif text-2xl font-medium mb-2">Your movement experience?</h2>
           <p className="text-muted text-sm mb-8">We adjust in real time anyway.</p>
           <div className="flex flex-col gap-3">
@@ -183,10 +224,10 @@ function OnboardingForm() {
         </div>
       )}
 
-      {/* Step 3 — Focus Areas */}
-      {step === 3 && (
+      {/* Step 4 — Focus Areas */}
+      {step === 4 && (
         <div className="flex-1 px-5 pt-8 pb-32 fade-up">
-          <p className="text-xs font-semibold text-sage uppercase tracking-widest mb-2">Step 3 of 3</p>
+          <p className="text-xs font-semibold text-sage uppercase tracking-widest mb-2">Step 4 of 4</p>
           <h2 className="font-serif text-2xl font-medium mb-2">Any areas to focus on?</h2>
           <p className="text-muted text-sm mb-8">We'll monitor these during sessions. Select any that apply.</p>
           <div className="grid grid-cols-2 gap-3">
@@ -218,7 +259,7 @@ function OnboardingForm() {
                       bg-gradient-to-t from-cream via-cream to-transparent">
         {step < STEPS ? (
           <button
-            disabled={step === 1 && goals.length === 0 || step === 2 && !level}
+            disabled={step === 1 && locale === null || step === 2 && goals.length === 0 || step === 3 && !level}
             className="btn-primary w-full justify-center py-4 text-base disabled:opacity-40"
             onClick={() => setStep(s => s + 1)}>
             Continue

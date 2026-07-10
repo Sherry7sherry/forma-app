@@ -40,7 +40,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
     `).eq('id', id).single(),
 
     supabase.from('user_profiles')
-      .select('subscription_status, voice_coaching_enabled, trial_started_at')
+      .select('subscription_status, voice_coaching_enabled, trial_started_at, preferred_locale')
       .eq('id', user.id)
       .single(),
 
@@ -118,6 +118,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
       userId={user.id}
       isPro={isPro}
       voiceCoachingEnabled={profile?.voice_coaching_enabled ?? true}
+      locale={profile?.preferred_locale === 'zh-CN' ? 'zh-CN' : 'en-US'}
       sessionsThisWeek={sessionsThisWeek ?? 0}
       partialSession={partialSession}
       bodyPolicy={bodyPolicy}

@@ -9,10 +9,14 @@
 // cues fall back to a short confirmation tone + haptic buzz so the user still
 // gets *some* signal without needing to read the screen from across the room.
 
+import type { Locale } from '@/lib/i18n'
+import { getSpeechVoice } from '@/lib/coach/cues'
+
 export interface VoiceCue {
   key: string
   text: string
   cooldownMs?: number
+  locale?: Locale
 }
 
 const DEFAULT_COOLDOWN_MS = 10_000
@@ -64,15 +68,24 @@ export function createVoiceCoach() {
     }
   }
 
-  function speakAloud(text: string) {
+  function speakAloud(text: string, locale?: Locale): boolean {
     try {
       window.speechSynthesis.cancel() // don't stack utterances — always say the latest thing
       const utter = new SpeechSynthesisUtterance(text)
+      if (locale) {
+        const voice = getSpeechVoice(locale, Array.from(window.speechSynthesis.getVoices()))
+        if (!voice) return false
+        utter.voice = voice
+        utter.lang = voice.lang
+      }
       utter.rate = 1.02
       utter.pitch = 1.0
       utter.volume = 0.9
       window.speechSynthesis.speak(utter)
-    } catch { /* speech synthesis can throw in some embedded contexts — fail silently */ }
+      return true
+    } catch {
+      return false
+    }
   }
 
   /** Short, gentle two-tone chime — used as a non-verbal cue when voice is off/unavailable. */
@@ -113,8 +126,8 @@ export function createVoiceCoach() {
     if (now - last < cooldown) return false
     lastSpokenAt[cue.key] = now
 
-    if (voiceEnabled && canSpeak()) {
-      speakAloud(cue.text)
+    if (voiceEnabled && canSpeak() && speakAloud(cue.text, cue.locale)) {
+      return true
     } else {
       playTone()
       buzz()

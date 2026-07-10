@@ -9,6 +9,12 @@ import { createClient } from '@/lib/supabase/client'
 import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import { formatDuration } from '@/lib/utils'
 import { createVoiceCoach, type VoiceCue } from '@/lib/voiceCoach'
+import { getCue } from '@/lib/coach/cues'
+import { fallbackSummary } from '@/lib/coach/fallbacks'
+import { requestSessionSummary } from '@/lib/coach/requestSummary'
+import { buildSummaryInput } from '@/lib/coach/summaryInput'
+import type { SessionSummary } from '@/lib/coach/types'
+import type { Locale } from '@/lib/i18n'
 import { FLOOR_EXERCISE_NAMES, getExerciseTrackingProfile } from '@/lib/exerciseTracking'
 import { hasTrackingCoverage, isWithinTrackingGrace, normalizedPoseDistance } from '@/lib/poseTracking'
 import { UpgradeButton } from '@/components/billing/BillingButton'
@@ -34,6 +40,7 @@ interface Props {
   userId: string
   isPro: boolean
   voiceCoachingEnabled: boolean
+  locale: Locale
   sessionsThisWeek: number
   bodyPolicy: SessionBodyPolicy
   entitlement: TrainingEntitlement
@@ -377,11 +384,36 @@ const EXERCISE_CUES: Record<string, { start: string; watch: string; avoid: strin
 }
 const DEFAULT_CUE = { start: 'Set up in your starting position', watch: 'Move slowly and with intention', avoid: 'Quality over speed' }
 
+function localizeSessionVoiceCue(cue: VoiceCue, locale: Locale): VoiceCue {
+  if (locale === 'en-US') return { ...cue, locale }
+
+  const key = cue.key
+  let text = cue.text
+
+  if (key === 'unsupported') text = '这个动作暂时需要手动计数。'
+  else if (key === 'upper-body' || key === 'full-body') text = getCue(locale, 'frameBody', 0).text
+  else if (key === 'tracking-low-confidence') text = '光线再好一点，或者动作慢一点。'
+  else if (key === 'ready') text = '我能看到你的全身了，准备好就开始。'
+  else if (key === 'movement-stale') text = '动作再大一点。'
+  else if (key === 'return-phase') text = '回到起始位置。'
+  else if (key.startsWith('rep-counted-')) text = '很好。'
+  else if (key === 'calib-orientation-landscape') text = '请把手机横过来。'
+  else if (key === 'calib-orientation-portrait') text = '请把手机竖起来。'
+  else if (key === 'calib-no-body') text = getCue(locale, 'calibrate', 1).text
+  else if (key === 'calib-upper-body' || key === 'calib-partial' || key === 'calib-key-points') text = getCue(locale, 'frameBody', 1).text
+  else if (key === 'calib-low-confidence') text = '改善一下光线，然后保持稳定。'
+  else if (key === 'calib-ready') text = '很好，保持一下。'
+  else if (key === 'calib-start-anyway') text = '如果你愿意，也可以现在开始。'
+  else if (key === 'voice-test') text = '语音教练已开启，我会在训练中提示你。'
+
+  return { ...cue, text, locale }
+}
+
 // Exercises whose primary movement is too small / internal for camera-based
 // pose tracking to reliably detect a rep cycle (e.g. small internal
 // contractions, breath-driven movement). AI form feedback still runs for
 // these — only auto rep-counting is held back until it can be done well.
-export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, sessionsThisWeek, bodyPolicy, entitlement, isPersonalizedIntro, reportId, partialSession }: Props) {
+export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, locale, sessionsThisWeek, bodyPolicy, entitlement, isPersonalizedIntro, reportId, partialSession }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
@@ -411,6 +443,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const [saveError, setSaveError]         = useState<string | null>(null)
   const [postSessionFeeling, setPostSessionFeeling] = useState<'better' | 'unchanged' | 'worse' | null>(null)
   const [savingPostSessionFeeling, setSavingPostSessionFeeling] = useState(false)
+  const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null)
   const [showNameOverlay, setShowNameOverlay] = useState(false) // brief name shown when auto-starting
 
   // ── Camera-first calibration (Pro AI camera) ──────────────────
@@ -457,6 +490,9 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   const movementStaleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const voiceCoachRef    = useRef(createVoiceCoach())
   const voiceEnabledRef  = useRef(voiceCoachingEnabled)
+  const speakCue = useCallback((cue: VoiceCue, enabled = voiceEnabledRef.current) => {
+    return voiceCoachRef.current.speak(localizeSessionVoiceCue(cue, locale), enabled)
+  }, [locale])
 
   const sessionTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null)
   const holdTimerRef       = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -633,17 +669,20 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       const upcomingIdx = currentExRef.current + 1
       const upcoming    = exercisesRef.current[upcomingIdx]?.exercise
       if (upcoming) {
-        voiceCoachRef.current.speak(
+        speakCue(
           {
             key: `transition-${upcomingIdx}`,
-            text: `Great. Next: ${upcoming.name}. Starting in ${TRANSITION_COUNTDOWN} seconds.`,
+            text: getCue(locale, 'transition', upcomingIdx, {
+              exerciseName: upcoming.name,
+              seconds: TRANSITION_COUNTDOWN,
+            }).text,
             cooldownMs: 4_000,
           },
           voiceEnabledRef.current
         )
       } else {
-        voiceCoachRef.current.speak(
-          { key: 'transition-finish', text: 'Great. That was your last exercise. Finishing up.', cooldownMs: 4_000 },
+        speakCue(
+          { key: 'transition-finish', text: getCue(locale, 'finish', currentExRef.current).text, cooldownMs: 4_000 },
           voiceEnabledRef.current
         )
       }
@@ -661,7 +700,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       if (transitionTimerRef.current) clearInterval(transitionTimerRef.current)
     }
     return () => { if (transitionTimerRef.current) clearInterval(transitionTimerRef.current) }
-  }, [phase])
+  }, [phase, locale, speakCue])
 
   // ── Name overlay auto-hide ────────────────────────────────────
   useEffect(() => {
@@ -755,11 +794,17 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     if (!exName) return
     const tReps    = se.reps_override ?? se.exercise?.default_reps ?? 0
     const holdType = se.exercise?.duration_type === 'hold'
-    const countText = holdType ? `${tReps} second hold` : `${tReps} reps`
+    const countText = locale === 'zh-CN'
+      ? (holdType ? `${tReps} 秒保持` : `${tReps} 次`)
+      : (holdType ? `${tReps} second hold` : `${tReps} reps`)
     // Small delay so the phase has settled before speaking.
     setTimeout(() => {
-      voiceCoachRef.current.speak(
-        { key: `exercise-start-${index}`, text: `Starting ${exName}. ${countText}.`, cooldownMs: 3_000 },
+      speakCue(
+        {
+          key: `exercise-start-${index}`,
+          text: getCue(locale, 'exerciseStart', index, { exerciseName: exName, target: countText }).text,
+          cooldownMs: 3_000,
+        },
         voiceEnabledRef.current
       )
     }, 400)
@@ -782,8 +827,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     activeStageRef.current = stage
     setActiveStage(stage)
     if (stage === 'calibrating') {
-      voiceCoachRef.current.speak(
-        { key: 'calibrate', text: 'Move until your full body is in frame. I will start automatically.', cooldownMs: 8_000 },
+      speakCue(
+        { key: 'calibrate', text: getCue(locale, 'calibrate', currentExRef.current).text, cooldownMs: 8_000 },
         voiceEnabledRef.current
       )
     }
@@ -947,6 +992,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // Use refs — endSession may be called from a stale closure inside advanceToNext
     const doneCnt    = completedExRef.current.length
     const allCompleted = doneCnt >= exercises.length - skippedExercises.length
+    const localSummary = fallbackSummary(buildSummaryInput({
+      locale,
+      formScore: avgScore,
+      durationSeconds: elapsed,
+      exercisesCompleted: doneCnt,
+      skippedExercises: skippedExercises.length,
+    }))
     try {
       if (recordId.current) {
         const result = await supabase.from('session_records').update({
@@ -958,9 +1010,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           total_exercises: exercises.length,
           is_partial: !allCompleted,
           skipped_exercises: skippedExercises.length,
-          ai_feedback: generateFeedback(avgScore),
+          ai_feedback: `${localSummary.headline}\n\n${localSummary.body}`,
         }).eq('id', recordId.current)
         assertSupabaseSuccess(result, 'Complete session')
+        setSessionSummary(localSummary)
+        void requestSessionSummary(recordId.current).then(result => {
+          if (result) setSessionSummary(result.summary)
+        })
       }
       setPhase('finished')
     } catch (err) {
@@ -1052,7 +1108,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     setAiRepPhase(phase)
     recordDebugEvent('phase_change', { aiRepPhase: phase, framingStatus: detail ?? 'tracked' })
     const status = describeAiRepStatus(phase, detail, stale)
-    if (status.voice) voiceCoachRef.current.speak(status.voice, voiceEnabledRef.current)
+    if (status.voice) speakCue(status.voice, voiceEnabledRef.current)
   }
 
   /**
@@ -1206,7 +1262,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         // No movement for a while — gently nudge rather than sit silently in "AI counting reps".
         setMovementStale(true)
         const status = describeAiRepStatus('waiting_for_engaged_phase', null, true)
-        if (status.voice) voiceCoachRef.current.speak(status.voice, voiceEnabledRef.current)
+        if (status.voice) speakCue(status.voice, voiceEnabledRef.current)
       }
       return
     }
@@ -1323,7 +1379,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
           delta: 0,
         })
       }
-      voiceCoachRef.current.speak(blocker.voice, voiceEnabledRef.current)
+      speakCue(blocker.voice, voiceEnabledRef.current)
       setCalibReady(prev => (prev === ready ? prev : ready))
       if (ready) {
         if (calibFallbackTimerRef.current) {
@@ -1334,7 +1390,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       } else if (!calibFallbackTimerRef.current) {
         calibFallbackTimerRef.current = setTimeout(() => {
           setShowStartAnyway(true)
-          voiceCoachRef.current.speak(
+          speakCue(
             { key: 'calib-start-anyway', text: 'You can start anyway if you want.', cooldownMs: 30_000 },
             voiceEnabledRef.current,
           )
@@ -1366,7 +1422,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
         })
       }
     }
-  }, [isPro, recordDebugEvent, trackingProfile])
+  }, [isPro, recordDebugEvent, speakCue, trackingProfile])
 
   const avgScore = calcAvgScore()
   // Single source of truth for the AI rep-counting chip/message/voice — keeps
@@ -1597,7 +1653,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
             <button
               onClick={() => {
                 voiceCoachRef.current.unlock()
-                voiceCoachRef.current.speak(
+                speakCue(
                   { key: 'voice-test', text: "Voice coaching is on. I'll guide you through your workout.", cooldownMs: 0 },
                   voiceEnabledRef.current
                 )
@@ -1853,6 +1909,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     // Use ref for count — state may lag one render behind after endSession sets phase
     const finalDoneCnt   = completedExRef.current.length
     const fullyCompleted = finalDoneCnt >= exercises.length - skippedExercises.length
+    const displayedSummary = sessionSummary ?? fallbackSummary(buildSummaryInput({
+      locale,
+      formScore: avgScore,
+      durationSeconds: elapsed,
+      exercisesCompleted: finalDoneCnt,
+      skippedExercises: skippedExercises.length,
+    }))
     return (
       <div className="min-h-dvh bg-cream flex flex-col">
         <div className={`px-6 pt-14 pb-8 relative overflow-hidden
@@ -1892,7 +1955,8 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 
         {fullyCompleted && (
           <div className="mx-5 mt-4 card border-l-4 border-l-sage pl-4">
-            <p className="text-sm text-charcoal-mid italic leading-relaxed">"{generateFeedback(avgScore)}"</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sage-dark">{displayedSummary.headline}</p>
+            <p className="mt-2 text-sm text-charcoal-mid italic leading-relaxed">"{displayedSummary.body}"</p>
             <p className="text-xs text-sage-dark font-semibold mt-2">— Forma AI Coach</p>
           </div>
         )}

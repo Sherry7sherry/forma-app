@@ -5,6 +5,8 @@ import { AlertTriangle, Check, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import { buildBodyCheckInInsert } from '@/lib/bodyMirror'
+import type { Locale } from '@/lib/i18n'
+import { translate } from '@/lib/i18n'
 import { createClient } from '@/lib/supabase/client'
 
 const COMFORT_OPTIONS = [
@@ -33,12 +35,14 @@ const SAFETY_SIGNALS = [
 
 interface Props {
   userId: string
+  locale?: Locale
   label?: string
   className?: string
 }
 
 export default function BodyCheckInSheet({
   userId,
+  locale = 'en-US',
   label = 'Check in now',
   className = 'btn-primary',
 }: Props) {
@@ -50,6 +54,31 @@ export default function BodyCheckInSheet({
   const [safetySignals, setSafetySignals] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isChinese = locale === 'zh-CN'
+  const comfortOptions = COMFORT_OPTIONS.map(option => ({
+    ...option,
+    label: isChinese ? ['很不舒服', '不舒服', '还可以', '舒服', '很舒服'][option.value - 1] : option.label,
+  }))
+  const focusAreaOptions = FOCUS_AREAS.map(area => ({
+    ...area,
+    label: isChinese
+      ? ({ neck_shoulders: '颈肩', lower_back: '下背', hips: '髋部' } as Record<string, string>)[area.value]
+      : area.label,
+  }))
+  const signalOptions = SAFETY_SIGNALS.map(signal => ({
+    ...signal,
+    label: isChinese
+      ? ({
+        sharp_pain: '锐痛',
+        numbness: '麻木',
+        radiating_pain: '放射痛',
+        dizziness: '眩晕',
+        chest_pain: '胸痛',
+        shortness_of_breath: '呼吸急促',
+        sudden_weakness: '突然无力',
+      } as Record<string, string>)[signal.value]
+      : signal.label,
+  }))
 
   useEffect(() => {
     if (!isOpen) return
@@ -80,7 +109,7 @@ export default function BodyCheckInSheet({
       setSafetySignals([])
       router.refresh()
     } catch {
-      setError('Your check-in could not be saved. Please try again.')
+      setError(isChinese ? '这次签到没有保存成功，请再试一次。' : 'Your check-in could not be saved. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -101,11 +130,11 @@ export default function BodyCheckInSheet({
             className="w-full max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-4xl bg-cream px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl sm:rounded-4xl sm:mb-4">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-sage-dark">15-second check-in</p>
-                <h2 id="body-check-in-title" className="font-serif text-2xl">How does your body feel?</h2>
-                <p className="mt-1 text-sm text-muted">This is a self-report, not a diagnosis.</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-sage-dark">{isChinese ? '15 秒签到' : '15-second check-in'}</p>
+                <h2 id="body-check-in-title" className="font-serif text-2xl">{translate(locale, 'checkIn.title')}</h2>
+                <p className="mt-1 text-sm text-muted">{translate(locale, 'checkIn.disclaimer')}</p>
               </div>
-              <button ref={closeButtonRef} type="button" aria-label="Close body check-in"
+              <button ref={closeButtonRef} type="button" aria-label={isChinese ? '关闭身体签到' : 'Close body check-in'}
                 onClick={() => setIsOpen(false)}
                 className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-border bg-white text-charcoal-mid focus:outline-none focus:ring-2 focus:ring-sage/40">
                 <X size={18} aria-hidden="true" />
@@ -114,9 +143,9 @@ export default function BodyCheckInSheet({
 
             <form onSubmit={submitCheckIn}>
               <fieldset>
-                <legend className="text-sm font-semibold text-charcoal">Overall comfort right now</legend>
+                <legend className="text-sm font-semibold text-charcoal">{isChinese ? '现在整体舒适度' : 'Overall comfort right now'}</legend>
                 <div className="mt-3 grid grid-cols-5 gap-2">
-                  {COMFORT_OPTIONS.map(option => (
+                  {comfortOptions.map(option => (
                     <button key={option.value} type="button" aria-pressed={comfort === option.value}
                       aria-label={`${option.value} out of 5: ${option.label}`}
                       onClick={() => setComfort(option.value)}
@@ -128,15 +157,15 @@ export default function BodyCheckInSheet({
                   ))}
                 </div>
                 <div className="mt-2 flex justify-between text-[11px] text-muted">
-                  <span>Uncomfortable</span><span>Comfortable</span>
+                  <span>{isChinese ? '不舒服' : 'Uncomfortable'}</span><span>{isChinese ? '舒服' : 'Comfortable'}</span>
                 </div>
               </fieldset>
 
               <fieldset className="mt-6">
-                <legend className="text-sm font-semibold text-charcoal">Where do you notice it?</legend>
-                <p className="mt-1 text-xs text-muted">Optional — choose any that apply.</p>
+                <legend className="text-sm font-semibold text-charcoal">{isChinese ? '你主要在哪里有感觉？' : 'Where do you notice it?'}</legend>
+                <p className="mt-1 text-xs text-muted">{isChinese ? '可选，可以多选。' : 'Optional — choose any that apply.'}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {FOCUS_AREAS.map(area => {
+                  {focusAreaOptions.map(area => {
                     const selected = focusAreas.includes(area.value)
                     return (
                       <button key={area.value} type="button" aria-pressed={selected}
@@ -151,13 +180,13 @@ export default function BodyCheckInSheet({
               </fieldset>
 
               <fieldset className="mt-6 rounded-2xl border border-rose/30 bg-rose/10 p-4">
-                <legend className="px-1 text-sm font-semibold text-charcoal">Any stop signals right now?</legend>
+                <legend className="px-1 text-sm font-semibold text-charcoal">{isChinese ? '现在有需要停止的信号吗？' : 'Any stop signals right now?'}</legend>
                 <p className="mt-1 flex gap-2 text-xs leading-relaxed text-charcoal-mid">
                   <AlertTriangle size={15} className="mt-0.5 flex-shrink-0 text-rose-dark" aria-hidden="true" />
-                  Selecting one will pause exercise recommendations.
+                  {isChinese ? '选择其中一项会暂停运动推荐。' : 'Selecting one will pause exercise recommendations.'}
                 </p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {SAFETY_SIGNALS.map(signal => {
+                  {signalOptions.map(signal => {
                     const selected = safetySignals.includes(signal.value)
                     return (
                       <button key={signal.value} type="button" aria-pressed={selected}
@@ -175,7 +204,11 @@ export default function BodyCheckInSheet({
 
               <button type="submit" disabled={comfort === null || saving}
                 className="btn-primary mt-6 w-full disabled:cursor-not-allowed disabled:opacity-45">
-                {saving ? 'Saving…' : safetySignals.length ? 'Save and pause recommendations' : 'Save check-in'}
+                {saving
+                  ? (isChinese ? '保存中…' : 'Saving…')
+                  : safetySignals.length
+                    ? (isChinese ? '保存并暂停推荐' : 'Save and pause recommendations')
+                    : translate(locale, 'checkIn.save')}
               </button>
             </form>
           </section>
