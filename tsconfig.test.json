@@ -40,6 +40,8 @@
     "lib/coach/sessionSummaryRoute.test.ts",
     "lib/coach/requestSummary.ts",
     "lib/coach/requestSummary.test.ts",
+    "lib/coach/speechProvider.ts",
+    "lib/coach/speechProvider.test.ts",
     "components/i18n/LanguageSelect.test.ts",
     "lib/poseCameraConfig.test.ts",
     "lib/repFeedback.test.ts",

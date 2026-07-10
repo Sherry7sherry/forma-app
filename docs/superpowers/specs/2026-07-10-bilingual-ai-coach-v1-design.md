@@ -1,6 +1,6 @@
 # Forma bilingual AI Coach V1 — design
 
-**Status:** approved direction, ready for implementation planning  
+**Status:** implementation plan created
 **Date:** 2026-07-10
 
 ## Outcome
