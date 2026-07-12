@@ -25,7 +25,7 @@ export const zhCNMessages = {
   'landing.freeAssessment': '免费评估',
   'landing.languageSwitch': 'English',
   'landing.badge': 'AI 普拉提教练',
-  'landing.hero.title': '一个会了解你身体的 AI 普拉提教练。',
+  'landing.hero.title': '更懂你的 AI 普拉提教练',
   'landing.hero.body': '从一次快速身体评估开始。Forma 会把你的身体历史、每日签到和 AI 动作观察，转成真正适合你的普拉提训练，并随着身体变化继续调整。',
   'landing.hero.primaryCta': '开始免费身体评估',
   'landing.hero.secondaryCta': '看看 Forma 如何个性化',

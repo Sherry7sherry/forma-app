@@ -5,6 +5,9 @@ import { translate } from '@/lib/i18n'
 
 export default function LandingPage({ locale }: { locale: Locale }) {
   const t = (key: MessageKey) => translate(locale, key)
+  const heroTitleClass = locale === 'zh-CN'
+    ? 'font-serif text-[clamp(1.5rem,7.2vw,2.25rem)] sm:text-5xl font-medium text-charcoal leading-tight tracking-[-0.045em] whitespace-nowrap'
+    : 'font-serif text-4xl sm:text-5xl font-medium text-charcoal leading-tight'
 
   const howSteps: { num: string; title: MessageKey; desc: MessageKey }[] = [
     { num: '01', title: 'landing.how.bodyAssessment.title', desc: 'landing.how.bodyAssessment.desc' },
@@ -56,8 +59,7 @@ export default function LandingPage({ locale }: { locale: Locale }) {
                         mb-6 uppercase tracking-widest">
           {t('landing.badge')}
         </div>
-        <h1 className="font-serif text-4xl sm:text-5xl font-medium text-charcoal
-                       leading-tight mb-5">
+        <h1 className={`${heroTitleClass} mb-5`}>
           {t('landing.hero.title')}
         </h1>
         <p className="text-charcoal-mid text-lg leading-relaxed mb-8 max-w-md mx-auto">
