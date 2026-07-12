@@ -67,6 +67,8 @@
     "lib/internalTesting/transitionPolicy.ts",
     "lib/internalTesting/transitionPolicy.test.ts",
     "lib/internalTesting/controllers.ts",
+    "lib/internalTesting/assessmentAdapter.ts",
+    "lib/internalTesting/assessmentAdapter.test.ts",
     "lib/sessionPlansSeed.test.ts",
     "lib/bodyMirror/types.ts",
     "lib/bodyMirror/deriveBodyMirror.ts",

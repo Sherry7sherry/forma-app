@@ -29,6 +29,7 @@ import { buildBodyCheckInInsert } from '@/lib/bodyMirror'
 import { createClient } from '@/lib/supabase/client'
 import { assertSupabaseSuccess } from '@/lib/supabaseErrors'
 import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
+import { createAssessmentTestAdapter } from '@/lib/internalTesting/assessmentAdapter'
 
 type Stage = 'intro' | 'check_in' | 'capture' | 'fallback' | 'result'
 type ResultOutcome = 'completed' | 'low_confidence' | 'camera_unavailable' | 'safety_hold'
@@ -60,9 +61,10 @@ const SAFETY_SIGNALS = [
   ['professional_pause', 'Professional instruction to pause'],
 ] as const
 
-export default function BodyAssessmentFlow({ userId, kind }: { userId: string; kind: AssessmentKind }) {
+export default function BodyAssessmentFlow({ userId, kind, internalTest=false }: { userId: string; kind: AssessmentKind; internalTest?:boolean }) {
   const router = useRouter()
   const supabaseRef = useRef(createClient())
+  const [internalAdapter]=useState(()=>internalTest?createAssessmentTestAdapter(()=>{}):undefined)
   const assessmentIdRef = useRef<string | null>(null)
   const checkInIdRef = useRef<string | null>(null)
   const [stage, setStage] = useState<Stage>('intro')
@@ -290,6 +292,7 @@ export default function BodyAssessmentFlow({ userId, kind }: { userId: string; k
             onLowConfidence={result => void handleLowConfidence(result)}
             onCameraUnavailable={() => void handleCameraUnavailable()}
             onExit={() => void exitAssessment()}
+            internalTestAdapter={internalAdapter}
           />
           {error && <div className="fixed inset-x-5 bottom-5 z-50 mx-auto max-w-md"><ErrorMessage message={error} /></div>}
         </div>
