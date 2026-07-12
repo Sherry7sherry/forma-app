@@ -38,11 +38,14 @@ describe('movement registry', () => {
     )
   })
 
-  it('uses the approved Arm Arcs label in the directed assessment lab', () => {
+  it('uses the approved Standing arm raise label while retaining the Arm Arcs tracking profile', () => {
     const armArcs = getTestableMovement('assessment:side_arm_raise')
-    assert.equal(armArcs?.displayName, 'Arm Arcs')
+    assert.equal(armArcs?.displayName, 'Standing arm raise')
     assert.equal(armArcs?.kind, 'assessment')
-    if (armArcs?.kind === 'assessment') assert.equal(armArcs.title, 'Arm Arcs')
+    if (armArcs?.kind === 'assessment') {
+      assert.equal(armArcs.title, 'Standing arm raise')
+      assert.equal(armArcs.exerciseName, 'Arm Arcs')
+    }
   })
 
   it('declares complete test metadata for every entry', () => {
