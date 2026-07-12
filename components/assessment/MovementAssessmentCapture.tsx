@@ -14,7 +14,7 @@ import {
   type DerivedObservation,
 } from '@/lib/bodyAssessment'
 import type { AssessmentMovement, MovementConstraint } from '@/lib/assessmentIntake'
-import type { BodyMirrorMovement } from '@/lib/bodyMirror'
+import { ASSESSMENT_TEST_MOVEMENTS } from '@/lib/internalTesting/movementRegistry'
 
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
 
@@ -26,41 +26,10 @@ export interface MovementAssessmentCaptureProps {
   onExit(): void
 }
 
-interface MovementDefinition {
-  key: BodyMirrorMovement
-  title: string
-  view: string
-  exerciseName: string
-  instruction: string
-  cue: string
-}
-
-export const MOVEMENT_ASSESSMENT_ITEMS: MovementDefinition[] = [
-  {
-    key: 'side_arm_raise',
-    title: 'Standing arm raise',
-    view: 'Side view',
-    exerciseName: 'Arm Arcs',
-    instruction: 'Stand side-on with your whole body visible, arms relaxed by your sides.',
-    cue: 'Slowly raise both arms overhead, then lower them twice.',
-  },
-  {
-    key: 'standing_roll_down',
-    title: 'Standing Roll Down',
-    view: 'Side view',
-    exerciseName: 'Standing Roll Down',
-    instruction: 'Stay side-on with feet grounded and arms relaxed.',
-    cue: 'Roll down slowly, pause at your comfortable range, then return to standing twice.',
-  },
-  {
-    key: 'seated_trunk_rotation',
-    title: 'Seated trunk rotation',
-    view: 'Front view',
-    exerciseName: 'Spine Twist',
-    instruction: 'Sit tall facing the camera with shoulders and hips clearly visible.',
-    cue: 'Rotate gently left and right, returning to center each time.',
-  },
-]
+export const MOVEMENT_ASSESSMENT_ITEMS = ASSESSMENT_TEST_MOVEMENTS.map(entry => ({
+  ...entry,
+  key: entry.assessmentMovementKey,
+}))
 
 const EMPTY_EVIDENCE: MovementEvidence = {
   ready: false,
