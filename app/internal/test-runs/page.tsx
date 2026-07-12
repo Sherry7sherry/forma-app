@@ -1,0 +1,5 @@
+import Link from 'next/link'
+import { TestRunFilters } from '@/components/internalTesting/TestRunFilters'
+import { createAdminClient } from '@/lib/supabase/server'
+import { buildAttemptFilters } from '@/lib/internalTesting/queries'
+export default async function TestRunsPage({searchParams}:{searchParams:Promise<Record<string,string|undefined>>}){const filters=buildAttemptFilters(await searchParams);let query=createAdminClient().from('internal_test_attempts').select('id,run_id,movement_id,status,summary,started_at').order('started_at',{ascending:false}).limit(100);if(filters.status)query=query.eq('status',filters.status);if(filters.movementId)query=query.eq('movement_id',filters.movementId);const{data}=await query;return <main className="mx-auto max-w-4xl p-6"><h1 className="font-serif text-3xl">Internal test runs</h1><div className="mt-5"><TestRunFilters/></div><ul className="mt-6 divide-y">{(data??[]).map(row=><li className="py-3" key={row.id}><Link href={`/internal/test-attempts/${row.id}`} className="font-medium">{row.movement_id}</Link><span className="ml-3 text-sm text-muted">{row.status}</span></li>)}</ul></main>}

@@ -14,7 +14,9 @@ import {
   type DerivedObservation,
 } from '@/lib/bodyAssessment'
 import type { AssessmentMovement, MovementConstraint } from '@/lib/assessmentIntake'
-import type { BodyMirrorMovement } from '@/lib/bodyMirror'
+import { ASSESSMENT_TEST_MOVEMENTS } from '@/lib/internalTesting/movementRegistry'
+import type { InternalAssessmentTestAdapter } from '@/lib/internalTesting/assessmentAdapter'
+import { InternalTestOverlay } from '@/components/internalTesting/InternalTestOverlay'
 
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
 
@@ -24,43 +26,13 @@ export interface MovementAssessmentCaptureProps {
   onLowConfidence(result: { overallConfidence: number; reason: AssessmentFailureReason }): void
   onCameraUnavailable(): void
   onExit(): void
+  internalTestAdapter?: InternalAssessmentTestAdapter
 }
 
-interface MovementDefinition {
-  key: BodyMirrorMovement
-  title: string
-  view: string
-  exerciseName: string
-  instruction: string
-  cue: string
-}
-
-export const MOVEMENT_ASSESSMENT_ITEMS: MovementDefinition[] = [
-  {
-    key: 'side_arm_raise',
-    title: 'Standing arm raise',
-    view: 'Side view',
-    exerciseName: 'Arm Arcs',
-    instruction: 'Stand side-on with your whole body visible, arms relaxed by your sides.',
-    cue: 'Slowly raise both arms overhead, then lower them twice.',
-  },
-  {
-    key: 'standing_roll_down',
-    title: 'Standing Roll Down',
-    view: 'Side view',
-    exerciseName: 'Standing Roll Down',
-    instruction: 'Stay side-on with feet grounded and arms relaxed.',
-    cue: 'Roll down slowly, pause at your comfortable range, then return to standing twice.',
-  },
-  {
-    key: 'seated_trunk_rotation',
-    title: 'Seated trunk rotation',
-    view: 'Front view',
-    exerciseName: 'Spine Twist',
-    instruction: 'Sit tall facing the camera with shoulders and hips clearly visible.',
-    cue: 'Rotate gently left and right, returning to center each time.',
-  },
-]
+export const MOVEMENT_ASSESSMENT_ITEMS = ASSESSMENT_TEST_MOVEMENTS.map(entry => ({
+  ...entry,
+  key: entry.assessmentMovementKey,
+}))
 
 const EMPTY_EVIDENCE: MovementEvidence = {
   ready: false,
@@ -85,6 +57,7 @@ export default function MovementAssessmentCapture({
   onLowConfidence,
   onCameraUnavailable,
   onExit,
+  internalTestAdapter,
 }: MovementAssessmentCaptureProps) {
   const movements = useMemo(() => MOVEMENT_ASSESSMENT_ITEMS.filter(item =>
     !hasConstraint(constraints, item.key, 'skip_movement')), [constraints])
@@ -177,6 +150,13 @@ export default function MovementAssessmentCapture({
     setStage('setup')
   }
 
+  function forceContinue() {
+    if (!movement || !internalTestAdapter) return
+    internalTestAdapter.syntheticComplete(movement.id, 'tester-blocked')
+    if (movementIndex === movements.length - 1) { internalTestAdapter.endCoverage(); onExit(); return }
+    setMovementIndex(index => index + 1); setStage('setup'); setCalibrated(false); setEvidence(EMPTY_EVIDENCE)
+  }
+
   if (!movement) {
     return (
       <section className="flex min-h-dvh flex-col justify-center bg-cream px-5 text-center">
@@ -189,6 +169,7 @@ export default function MovementAssessmentCapture({
 
   return (
     <section className={`flex min-h-dvh flex-col ${stage === 'capture' ? 'bg-charcoal text-white' : 'bg-cream text-charcoal'}`}>
+      {internalTestAdapter && <InternalTestOverlay movement={movement.displayName} phase={stage} onRecord={issue=>internalTestAdapter.record({eventType:'blocker',data:{movementId:movement.id,issue}})} onRetry={()=>{internalTestAdapter.retry(stage);openCamera()}} onForceContinue={forceContinue} onEnd={()=>{internalTestAdapter.endCoverage();onExit()}} />}
       <header className="flex items-center justify-between px-5 pb-4 pt-6 sm:pt-10">
         <button type="button" onClick={onExit} className={`inline-flex min-h-11 items-center gap-2 rounded-full pr-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage ${stage === 'capture' ? 'text-white/75' : 'text-charcoal-mid'}`}>
           <ArrowLeft size={17} aria-hidden="true" /> Exit

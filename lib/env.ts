@@ -8,6 +8,12 @@ export function readRequiredEnv(env: EnvSource, name: string): string {
   return value
 }
 
+export function parseInternalTesterEmails(value: string | undefined): readonly string[] {
+  return Array.from(new Set((value ?? '').split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(Boolean)))
+}
+
 export const appEnv = {
   supabaseUrl: () => readRequiredEnv(process.env, 'NEXT_PUBLIC_SUPABASE_URL'),
   supabaseAnonKey: () => readRequiredEnv(process.env, 'NEXT_PUBLIC_SUPABASE_ANON_KEY'),
@@ -17,4 +23,5 @@ export const appEnv = {
   stripeMonthlyPriceId: () => readRequiredEnv(process.env, 'STRIPE_PRO_MONTHLY_PRICE_ID'),
   stripeYearlyPriceId: () => readRequiredEnv(process.env, 'STRIPE_PRO_YEARLY_PRICE_ID'),
   appUrl: () => readRequiredEnv(process.env, 'NEXT_PUBLIC_APP_URL').replace(/\/$/, ''),
+  internalTesterEmails: () => parseInternalTesterEmails(process.env.INTERNAL_TESTER_EMAILS),
 }

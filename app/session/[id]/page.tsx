@@ -4,15 +4,17 @@ import { startOfWeekISO } from '@/lib/utils'
 import { deriveSessionBodyPolicy, loadBodyMirrorForUser } from '@/lib/bodyMirror'
 import { deriveTrainingEntitlement } from '@/lib/subscriptionEntitlement'
 import SessionPlayer from './SessionPlayer'
+import { appEnv } from '@/lib/env'
+import { authorizeInternalIdentity } from '@/lib/internalTesting/auth'
 
 interface Props {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ intro?: string }>
+  searchParams: Promise<{ intro?: string; testMode?: string }>
 }
 
 export default async function SessionPage({ params, searchParams }: Props) {
   const { id } = await params
-  const { intro: requestedReportId } = await searchParams
+  const { intro: requestedReportId, testMode } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -125,6 +127,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
       entitlement={entitlement}
       isPersonalizedIntro={isPersonalizedIntro}
       reportId={reportId}
+      internalTest={testMode === '1' && !!authorizeInternalIdentity(user, appEnv.internalTesterEmails())}
     />
   )
 }

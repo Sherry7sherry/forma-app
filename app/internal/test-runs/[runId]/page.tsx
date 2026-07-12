@@ -1,0 +1,3 @@
+import Link from 'next/link'
+import { createAdminClient } from '@/lib/supabase/server'
+export default async function TestRunPage({params}:{params:Promise<{runId:string}>}){const{runId}=await params;const{data}=await createAdminClient().from('internal_test_attempts').select('id,movement_id,status,started_at').eq('run_id',runId).order('started_at');return <main className="mx-auto max-w-3xl p-6"><h1 className="font-serif text-3xl">Run {runId}</h1><ul className="mt-5 space-y-2">{(data??[]).map(row=><li key={row.id}><Link href={`/internal/test-attempts/${row.id}`}>{row.movement_id} · {row.status}</Link></li>)}</ul></main>}

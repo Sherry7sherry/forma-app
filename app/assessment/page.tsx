@@ -4,8 +4,10 @@ import BodyAssessmentFlow from './BodyAssessmentFlow'
 import { selectAssessmentKind } from '@/lib/bodyAssessment'
 import { loadBodyMirrorForUser } from '@/lib/bodyMirror'
 import { createClient } from '@/lib/supabase/server'
+import { appEnv } from '@/lib/env'
+import { authorizeInternalIdentity } from '@/lib/internalTesting/auth'
 
-export default async function AssessmentPage() {
+export default async function AssessmentPage({searchParams}:{searchParams:Promise<{testMode?:string}>}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -17,5 +19,7 @@ export default async function AssessmentPage() {
     control: result?.dimensions.control.state ?? 'no_data',
   })
 
-  return <BodyAssessmentFlow userId={user.id} kind={kind} />
+  const requested=(await searchParams).testMode==='1'
+  const internalTest=requested&&!!authorizeInternalIdentity(user,appEnv.internalTesterEmails())
+  return <BodyAssessmentFlow userId={user.id} kind={kind} internalTest={internalTest} />
 }
