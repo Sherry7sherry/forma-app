@@ -23,6 +23,8 @@ import type { TrainingEntitlement } from '@/lib/subscriptionEntitlement'
 import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 import type { SessionPlan } from '@/types'
 import { TrackingEventCollector, type TrackingEventData, type TrackingEventType } from '@/lib/internalTesting/trackingEvents'
+import { createSessionTestAdapter } from '@/lib/internalTesting/sessionAdapter'
+import { InternalTestOverlay } from '@/components/internalTesting/InternalTestOverlay'
 
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
 
@@ -54,6 +56,7 @@ interface Props {
     totalExercises: number
     savedAt: string   // ISO timestamp
   } | null
+  internalTest?: boolean
 }
 
 const FREE_SESSION_LIMIT = 3
@@ -397,7 +400,7 @@ function localizeSessionVoiceCue(cue: VoiceCue, locale: Locale): VoiceCue {
 // pose tracking to reliably detect a rep cycle (e.g. small internal
 // contractions, breath-driven movement). AI form feedback still runs for
 // these — only auto rep-counting is held back until it can be done well.
-export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, locale, sessionsThisWeek, bodyPolicy, entitlement, isPersonalizedIntro, reportId, partialSession }: Props) {
+export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnabled, locale, sessionsThisWeek, bodyPolicy, entitlement, isPersonalizedIntro, reportId, partialSession, internalTest=false }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
@@ -899,6 +902,12 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     } else {
       endSession()
     }
+  }
+
+  function advanceTestCoverageOnly() {
+    const curIdx=currentExRef.current
+    if(curIdx<exercises.length-1){const nextIdx=curIdx+1;setCurrentEx(nextIdx);currentExRef.current=nextIdx;repCountRef.current=0;setRepCount(0);setHoldElapsed(0);primeActiveStage();setPhase('active')}
+    else { setPhase('finished') }
   }
 
   function handleSkipRequest() {
@@ -1414,6 +1423,11 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
   }, [isPro, recordDebugEvent, speakCue, trackingProfile])
 
   const avgScore = calcAvgScore()
+  const internalSessionAdapter = internalTest?createSessionTestAdapter({
+    retry:()=>{setCalibReady(false);primeActiveStage()},start:startExercising,
+    setCount:count=>{repCountRef.current=count;setRepCount(count)},advance:advanceTestCoverageOnly,
+    record:event=>debugCollectorRef.current.record('synthetic_transition',{adapterEvent:event as never}),
+  }):undefined
   // Single source of truth for the AI rep-counting chip/message/voice — keeps
   // on-screen copy and spoken prompts perfectly in sync with the state machine.
   const aiStatus = describeAiRepStatus(aiRepPhase, framingDetail, movementStale)
@@ -2020,6 +2034,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 	    const calibrating = activeStage === 'calibrating'
 	    return (
 	      <div className="fixed inset-0 h-[100dvh] w-screen bg-black overflow-hidden">
+	        {internalSessionAdapter && (
+            <InternalTestOverlay movement={exercise?.name ?? 'Session'} phase={activeStage}
+              onRecord={issue => debugCollectorRef.current.record('blocker', { issue: issue as never })}
+              onRetry={() => internalSessionAdapter.retryCalibration()}
+              onForceContinue={() => internalSessionAdapter.syntheticComplete(`exercise:${exercise?.name ?? 'unknown'}`)}
+              onEnd={() => setPhase('finished')} />
+          )}
 	        {repFlash && (
 	          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
 	            <div className="rep-pulse rounded-full bg-sage-light/90 px-8 py-5 text-5xl font-bold text-white shadow-[0_0_40px_rgba(122,158,142,.45)] animate-pulse">
@@ -2245,6 +2266,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 	  // ── ACTIVE · FREE (no camera — classic dashboard layout) ──────
 	  return (
 	    <div className="min-h-dvh bg-charcoal flex flex-col">
+	      {internalSessionAdapter && (
+          <InternalTestOverlay movement={exercise?.name ?? 'Session'} phase="exercising"
+            onRecord={issue => debugCollectorRef.current.record('blocker', { issue: issue as never })}
+            onRetry={() => internalSessionAdapter.retryCalibration()}
+            onForceContinue={() => internalSessionAdapter.syntheticComplete(`exercise:${exercise?.name ?? 'unknown'}`)}
+            onEnd={() => setPhase('finished')} />
+        )}
 	      {repFlash && (
 	        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
 	          <div className="rep-pulse rounded-full bg-sage-light/90 px-8 py-5 text-5xl font-bold text-white shadow-[0_0_40px_rgba(122,158,142,.45)] animate-pulse">
