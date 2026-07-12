@@ -34,7 +34,7 @@ export const ASSESSMENT_TEST_MOVEMENTS: readonly AssessmentTestableMovement[] = 
     orientation: 'either',
     capabilities: ['calibration', 'assessment-observation'],
     scenarios: [CAMERA_SCENARIO, CALIBRATION_SCENARIO, { id: 'low-confidence', label: 'Low confidence', assertionType: 'assessment-evidence' }],
-    title: 'Standing arm raise',
+    title: 'Arm Arcs',
     view: 'Side view',
     instruction: 'Stand side-on with your whole body visible, arms relaxed by your sides.',
     cue: 'Slowly raise both arms overhead, then lower them twice.',
