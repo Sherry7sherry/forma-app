@@ -58,6 +58,8 @@
     "lib/internalTesting/auth.test.ts",
     "lib/internalTesting/persistence.ts",
     "lib/internalTesting/persistence.test.ts",
+    "lib/internalTesting/api.ts",
+    "lib/internalTesting/api.test.ts",
     "lib/sessionPlansSeed.test.ts",
     "lib/bodyMirror/types.ts",
     "lib/bodyMirror/deriveBodyMirror.ts",
