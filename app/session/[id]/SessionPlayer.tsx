@@ -22,6 +22,7 @@ import type { SessionBodyPolicy } from '@/lib/bodyMirror'
 import type { TrainingEntitlement } from '@/lib/subscriptionEntitlement'
 import { trackAssessmentEvent } from '@/lib/assessmentAnalytics'
 import type { SessionPlan } from '@/types'
+import { TrackingEventCollector, type TrackingEventData, type TrackingEventType } from '@/lib/internalTesting/trackingEvents'
 
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
 
@@ -77,7 +78,6 @@ interface CalibrationBlocker {
 const REP_COOLDOWN_MS      = 700    // minimum ms between two counted reps — prevents double-counting
 const MOVEMENT_TIMEOUT_MS  = 12_000    // how long to wait at baseline before nudging "movement not detected yet"
 const REP_COUNTED_DISPLAY_MS = 800    // how long the "+1" confirmation lingers before reverting
-const DEBUG_LOG_LIMIT = 2_500
 const DEBUG_POSE_LOG_INTERVAL_MS = 500
 
 // ── AI rep-counting state machine ──────────────────────────────────
@@ -106,22 +106,6 @@ interface AiRepStatus {
 }
 
 type DebugEventType = 'pose_update' | 'phase_change' | 'count' | 'quality_cue' | 'blocker'
-
-interface DebugLogEntry {
-  exerciseName: string
-  timestamp: string
-  aiRepPhase: AiRepPhase
-  framingStatus: string
-  bodyConfidence: number
-  visibleLandmarks: number
-  requiredLandmarks: number
-  delta: number
-  engageThreshold: number
-  returnThreshold: number
-  repCount: number
-  qualityCue: string | null
-  eventType: DebugEventType
-}
 
 /** Single source of truth for on-screen copy + spoken prompt, keyed off the state machine. */
 function describeAiRepStatus(phase: AiRepPhase, detail: FramingDetail, movementStale: boolean): AiRepStatus {
@@ -475,7 +459,12 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     delta: 0,
   })
   const poseDebugRef = useRef(false)
-  const debugLogRef = useRef<DebugLogEntry[]>([])
+  const debugCollectorRef = useRef(new TrackingEventCollector({
+    attemptId: 'standalone-pose-debug', movementId: 'session:unknown', movementName: '',
+    buildVersion: process.env.NEXT_PUBLIC_BUILD_VERSION ?? 'unknown',
+    profileVersion: process.env.NEXT_PUBLIC_TRACKING_PROFILE_VERSION ?? '1',
+    startedAtMs: Date.now(),
+  }))
   const lastDebugPoseLogAtRef = useRef(0)
   const lastBlockerTitleRef = useRef<string | null>(null)
   const aiRepPhaseRef    = useRef<AiRepPhase>('waiting_for_full_body')  // mirrors aiRepPhase — the live cycle tracker
@@ -1058,11 +1047,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
     if (movementStaleTimerRef.current) clearTimeout(movementStaleTimerRef.current)
   }
 
-  const recordDebugEvent = useCallback((eventType: DebugEventType, data: Partial<DebugLogEntry> = {}) => {
+  const recordDebugEvent = useCallback((eventType: DebugEventType, data: Record<string, unknown> = {}) => {
     const currentExerciseName = exercisesRef.current[currentExRef.current]?.exercise?.name ?? exercise?.name ?? ''
-    const entry: DebugLogEntry = {
-      exerciseName: data.exerciseName ?? currentExerciseName,
-      timestamp: data.timestamp ?? new Date().toISOString(),
+    debugCollectorRef.current.updateContext({
+      movementId: `exercise:${currentExerciseName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      movementName: currentExerciseName,
+    })
+    const payload = {
       aiRepPhase: data.aiRepPhase ?? aiRepPhaseRef.current,
       framingStatus: data.framingStatus ?? framingDetailRef.current ?? 'unknown',
       bodyConfidence: data.bodyConfidence ?? repDiagnostics.confidence,
@@ -1073,16 +1064,14 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       returnThreshold: data.returnThreshold ?? trackingProfile.returnThreshold,
       repCount: data.repCount ?? repCountRef.current,
       qualityCue: data.qualityCue ?? qualityCueRef.current,
-      eventType,
-    }
-    debugLogRef.current.push(entry)
-    if (debugLogRef.current.length > DEBUG_LOG_LIMIT) {
-      debugLogRef.current.splice(0, debugLogRef.current.length - DEBUG_LOG_LIMIT)
-    }
+    } as TrackingEventData
+    const mappedType: TrackingEventType = eventType === 'pose_update' ? 'pose_sample'
+      : eventType === 'quality_cue' ? 'feedback' : eventType
+    debugCollectorRef.current.record(mappedType, payload)
   }, [exercise?.name, repDiagnostics, trackingProfile.engageThreshold, trackingProfile.returnThreshold])
 
   function downloadDebugLog() {
-    const payload = JSON.stringify(debugLogRef.current, null, 2)
+    const payload = debugCollectorRef.current.toJSON(true)
     const blob = new Blob([payload], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')

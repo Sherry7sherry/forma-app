@@ -64,10 +64,8 @@ describe('session rep feedback copy', () => {
 
   it('exports debug logs with pose, phase, count, quality, and blocker events', () => {
     assert.match(source, /type DebugEventType = 'pose_update' \| 'phase_change' \| 'count' \| 'quality_cue' \| 'blocker'/)
-    assert.match(source, /interface DebugLogEntry/)
+    assert.match(source, /TrackingEventCollector/)
     for (const field of [
-      'exerciseName',
-      'timestamp',
       'aiRepPhase',
       'framingStatus',
       'bodyConfidence',
@@ -78,14 +76,13 @@ describe('session rep feedback copy', () => {
       'returnThreshold',
       'repCount',
       'qualityCue',
-      'eventType',
     ]) {
       assert.match(source, new RegExp(`${field}:`))
     }
-    assert.match(source, /debugLogRef/)
+    assert.match(source, /debugCollectorRef/)
     assert.match(source, /recordDebugEvent/)
     assert.match(source, /Download debug log/)
-    assert.match(source, /JSON\.stringify/)
+    assert.match(source, /toJSON\(true\)/)
     assert.match(source, /new Blob/)
   })
 
