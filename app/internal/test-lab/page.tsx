@@ -1,0 +1,2 @@
+import { TestLabForm } from '@/components/internalTesting/TestLabForm'
+export default function TestLabPage(){return <main className="mx-auto min-h-dvh max-w-xl p-6"><h1 className="font-serif text-3xl">Movement test lab</h1><p className="mt-2 text-sm text-charcoal-mid">Create a stable, copyable scenario link. Access remains server-authorized.</p><div className="mt-6 rounded-2xl bg-white p-5 shadow-card"><TestLabForm/></div></main>}

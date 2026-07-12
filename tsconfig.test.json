@@ -71,6 +71,8 @@
     "lib/internalTesting/assessmentAdapter.test.ts",
     "lib/internalTesting/sessionAdapter.ts",
     "lib/internalTesting/sessionAdapter.test.ts",
+    "lib/internalTesting/scenarios.ts",
+    "lib/internalTesting/scenarios.test.ts",
     "lib/sessionPlansSeed.test.ts",
     "lib/bodyMirror/types.ts",
     "lib/bodyMirror/deriveBodyMirror.ts",
