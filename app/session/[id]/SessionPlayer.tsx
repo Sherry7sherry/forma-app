@@ -1073,7 +1073,7 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
       returnThreshold: data.returnThreshold ?? trackingProfile.returnThreshold,
       repCount: data.repCount ?? repCountRef.current,
       qualityCue: data.qualityCue ?? qualityCueRef.current,
-    } as TrackingEventData
+    } as unknown as TrackingEventData
     const mappedType: TrackingEventType = eventType === 'pose_update' ? 'pose_sample'
       : eventType === 'quality_cue' ? 'feedback' : eventType
     debugCollectorRef.current.record(mappedType, payload)

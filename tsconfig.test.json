@@ -75,6 +75,7 @@
     "lib/internalTesting/scenarios.test.ts",
     "lib/internalTesting/queries.ts",
     "lib/internalTesting/queries.test.ts",
+    "lib/internalTesting/flowContracts.test.ts",
     "lib/sessionPlansSeed.test.ts",
     "lib/bodyMirror/types.ts",
     "lib/bodyMirror/deriveBodyMirror.ts",

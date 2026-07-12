@@ -99,6 +99,19 @@ INTERNAL_TESTER_EMAILS=tester-one@example.com,tester-two@example.com
 `INTERNAL_TESTER_EMAILS` is server-only and controls access to `/internal/*` and
 internal-test APIs. URL parameters never grant internal access.
 
+### Internal movement test platform
+
+Set `INTERNAL_TESTER_EMAILS` to the approved tester accounts, apply
+`supabase/migrations/011_internal_movement_testing.sql`, then sign in with an
+allowlisted account. Use `/internal/test-lab` to create copyable directed-test
+links, `/assessment?testMode=1` for an assessment flow, and a session URL with
+`testMode=1` for training controls. Internal diagnostic rows are retained only
+in `internal_test_*` tables; failed uploads remain pending in IndexedDB and can
+be exported manually. Do not copy synthetic attempts into production reports,
+session history, progress, recommendations, summaries, entitlements, or
+analytics. Periodically delete expired artifacts using `retention_until` after
+the agreed internal retention window.
+
 Restart the local dev server or redeploy after changing server environment
 values.
 

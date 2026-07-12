@@ -1,5 +1,5 @@
-import { getTestableMovement } from './movementRegistry.js'
-import type { JsonValue } from './trackingEvents.js'
+import { getTestableMovement } from '@/lib/internalTesting/movementRegistry'
+import type { JsonValue } from '@/lib/internalTesting/trackingEvents'
 
 export const INTERNAL_ISSUE_TYPES = [
   'unable-to-continue', 'missed-repetitions', 'extra-repetitions', 'incorrect-feedback',

@@ -1,4 +1,4 @@
-import type { DiagnosticQueue } from './indexedQueue.js'
+import type { DiagnosticQueue } from '@/lib/internalTesting/indexedQueue'
 export type DiagnosticLifecycle = 'idle'|'run-active'|'attempt-active'|'pending-upload'|'completed'|'failed'
 export function retryDisposition(status: number) { return status === 408 || status === 429 || status >= 500 ? 'retry' : 'permanent' }
 export class DiagnosticSession {

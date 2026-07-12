@@ -1,8 +1,8 @@
 import 'server-only'
 
 import { redirect } from 'next/navigation'
-import { appEnv } from '../env.js'
-import { createClient } from '../supabase/server.js'
+import { appEnv } from '@/lib/env'
+import { createClient } from '@/lib/supabase/server'
 
 interface AuthUser { id: string; email?: string | null }
 export interface InternalIdentity { userId: string; email: string }

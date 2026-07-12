@@ -1,5 +1,5 @@
-import type { AssessmentMovement } from '../assessmentIntake/types.js'
-import type { CameraOrientation } from '../exerciseTracking.js'
+import type { AssessmentMovement } from '@/lib/assessmentIntake/types'
+import type { CameraOrientation } from '@/lib/exerciseTracking'
 
 export type TestMovementKind = 'assessment' | 'exercise'
 export type PostureFamily =

@@ -2,14 +2,14 @@ import {
   getExerciseTrackingOverrideNames,
   getExerciseTrackingProfile,
   getFloorExerciseNames,
-} from '../exerciseTracking.js'
+} from '@/lib/exerciseTracking'
 import type {
   AssessmentTestableMovement,
   ExerciseTestableMovement,
   PostureFamily,
   TestScenarioDefinition,
   TestableMovement,
-} from './types.js'
+} from '@/lib/internalTesting/types'
 
 const CAMERA_SCENARIO: TestScenarioDefinition = {
   id: 'camera-unavailable',
