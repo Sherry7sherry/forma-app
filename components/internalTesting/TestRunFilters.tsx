@@ -1,0 +1,2 @@
+'use client'
+export function TestRunFilters(){return <form className="flex gap-2" action="/internal/test-runs"><select name="status" className="rounded-xl border p-2"><option value="">All statuses</option>{['passed','failed','blocked','retried','skipped','pending-upload'].map(x=><option key={x}>{x}</option>)}</select><input name="movementId" placeholder="Movement ID" className="rounded-xl border p-2"/><button className="btn-secondary">Filter</button></form>}
