@@ -25,4 +25,14 @@ describe('bilingual public and app entry points', () => {
     assert.match(source, /useLocale\(\)/)
     assert.match(source, /translate\(locale, item\.labelKey\)/)
   })
+
+  it('keeps the Chinese landing headline on one deliberate responsive line', () => {
+    const messages = readFileSync('lib/i18n/messages/zh-CN.ts', 'utf8')
+    const landing = readFileSync('components/landing/LandingPage.tsx', 'utf8')
+
+    assert.match(messages, /'landing\.hero\.title': '更懂你的 AI 普拉提教练'/)
+    assert.match(landing, /locale === 'zh-CN'/)
+    assert.match(landing, /whitespace-nowrap/)
+    assert.match(landing, /text-\[clamp\(1\.5rem,7\.2vw,2\.25rem\)\]/)
+  })
 })
