@@ -93,7 +93,11 @@ in local and production environments. Do **not** prefix them with
 ```bash
 OPENAI_API_KEY=
 OPENAI_COACH_MODEL=
+INTERNAL_TESTER_EMAILS=tester-one@example.com,tester-two@example.com
 ```
+
+`INTERNAL_TESTER_EMAILS` is server-only and controls access to `/internal/*` and
+internal-test APIs. URL parameters never grant internal access.
 
 Restart the local dev server or redeploy after changing server environment
 values.

@@ -14,6 +14,12 @@ describe('bilingual public and app entry points', () => {
     assert.match(source, /PUBLIC_PATHS[\s\S]*'\/en'[\s\S]*'\/zh'/)
   })
 
+  it('keeps internal testing behind the normal authenticated gates', () => {
+    const source = readFileSync('proxy.ts', 'utf8')
+    const publicPaths = source.match(/const PUBLIC_PATHS = \[(.*?)\]/s)?.[1] ?? ''
+    assert.doesNotMatch(publicPaths, /internal/)
+  })
+
   it('does not retain English-only bottom-nav labels', () => {
     const source = readFileSync('components/nav/BottomNav.tsx', 'utf8')
     assert.match(source, /useLocale\(\)/)

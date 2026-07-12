@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { readRequiredEnv } from './env'
+import { parseInternalTesterEmails, readRequiredEnv } from './env'
 
 describe('readRequiredEnv', () => {
   it('returns configured values', () => {
@@ -21,5 +21,18 @@ describe('readRequiredEnv', () => {
       () => readRequiredEnv({ STRIPE_SECRET_KEY: '   ' }, 'STRIPE_SECRET_KEY'),
       /Missing required environment variable: STRIPE_SECRET_KEY/
     )
+  })
+})
+
+describe('internal tester environment', () => {
+  it('parses a normalized case-insensitive allowlist', () => {
+    assert.deepEqual(parseInternalTesterEmails(' Alice@Example.com, bob@example.com,ALICE@example.com '), [
+      'alice@example.com', 'bob@example.com',
+    ])
+  })
+
+  it('ignores whitespace and empty values', () => {
+    assert.deepEqual(parseInternalTesterEmails(' ,  ,'), [])
+    assert.deepEqual(parseInternalTesterEmails(undefined), [])
   })
 })
