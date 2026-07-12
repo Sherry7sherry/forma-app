@@ -56,6 +56,8 @@
     "lib/internalTesting/trackingEvents.test.ts",
     "lib/internalTesting/auth.ts",
     "lib/internalTesting/auth.test.ts",
+    "lib/internalTesting/persistence.ts",
+    "lib/internalTesting/persistence.test.ts",
     "lib/sessionPlansSeed.test.ts",
     "lib/bodyMirror/types.ts",
     "lib/bodyMirror/deriveBodyMirror.ts",

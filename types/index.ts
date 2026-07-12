@@ -131,6 +131,18 @@ export interface FocusAreaProgress {
   improvement_pct: number
 }
 
+export interface InternalTestRunRecord {
+  id: string; tester_id: string; source_flow: 'assessment' | 'session' | 'directed'
+  build_version: string; profile_version: string; environment: Record<string, unknown>
+  status: string; started_at: string; ended_at: string | null
+}
+
+export interface InternalTestAttemptRecord {
+  id: string; run_id: string; movement_id: string; movement_kind: 'assessment' | 'exercise'
+  phase: string; status: string; synthetic: boolean; summary: Record<string, unknown>
+  started_at: string; ended_at: string | null
+}
+
 // ── Stripe ──────────────────────────────────────────────────────
 export interface SubscriptionPlan {
   id: 'free' | 'pro_monthly' | 'pro_yearly' | 'founding'
