@@ -73,6 +73,8 @@
     "lib/internalTesting/sessionAdapter.test.ts",
     "lib/internalTesting/scenarios.ts",
     "lib/internalTesting/scenarios.test.ts",
+    "lib/internalTesting/assessmentSequence.ts",
+    "lib/internalTesting/assessmentSequence.test.ts",
     "lib/internalTesting/queries.ts",
     "lib/internalTesting/queries.test.ts",
     "lib/internalTesting/flowContracts.test.ts",
