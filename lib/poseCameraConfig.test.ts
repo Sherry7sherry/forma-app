@@ -158,6 +158,14 @@ describe('Movement assessment capture readiness', () => {
     assert.match(source, /guidanceSide === 'left'\s*\?\s*'left-3'/)
     assert.doesNotMatch(source, /inset-x-4 bottom-4/)
   })
+
+  it('keeps desktop capture inside one viewport and gives remaining height to the camera', () => {
+    assert.match(source, /stage === 'capture' \? 'h-dvh overflow-hidden/)
+    assert.match(source, /stage === 'capture' \? 'px-3 pb-2 pt-2 sm:px-5 sm:py-2'/)
+    assert.match(source, /relative min-h-0 flex-1 overflow-hidden/)
+    assert.doesNotMatch(source, /relative min-h-\[58dvh\] flex-1 overflow-hidden/)
+    assert.match(source, /sm:py-2/)
+  })
 })
 
 describe('Assessment failure copy', () => {
