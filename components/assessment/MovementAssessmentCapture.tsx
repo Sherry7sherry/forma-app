@@ -232,9 +232,9 @@ export default function MovementAssessmentCapture({
   }
 
   return (
-    <section className={`flex min-h-dvh flex-col ${stage === 'capture' ? 'bg-charcoal text-white' : 'bg-cream text-charcoal'}`}>
+    <section className={`flex flex-col ${stage === 'capture' ? 'h-dvh overflow-hidden bg-charcoal text-white' : 'min-h-dvh bg-cream text-charcoal'}`}>
       {internalTestAdapter && <InternalTestOverlay movement={movement.displayName} phase={stage} onRecord={issue=>internalTestAdapter.record({eventType:'blocker',data:{movementId:movement.id,issue}})} onRetry={()=>{internalTestAdapter.retry(stage);openCamera()}} onForceContinue={forceContinue} onEnd={()=>{internalTestAdapter.endCoverage();onExit()}} />}
-      <header className="flex items-center justify-between px-5 pb-4 pt-6 sm:pt-10">
+      <header className={`flex shrink-0 items-center justify-between ${stage === 'capture' ? 'px-3 pb-2 pt-2 sm:px-5 sm:py-2' : 'px-5 pb-4 pt-6 sm:pt-10'}`}>
         <button type="button" onClick={onExit} className={`inline-flex min-h-11 items-center gap-2 rounded-full pr-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage ${stage === 'capture' ? 'text-white/75' : 'text-charcoal-mid'}`}>
           <ArrowLeft size={17} aria-hidden="true" /> Exit
         </button>
@@ -278,7 +278,7 @@ export default function MovementAssessmentCapture({
 
       {stage === 'capture' && (
         <div className="flex flex-1 flex-col">
-          <div className="relative min-h-[58dvh] flex-1 overflow-hidden">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
             <PoseCamera
               onPoseResult={handlePoseResult}
               onCameraStatus={setCameraStatus}
@@ -349,7 +349,7 @@ export default function MovementAssessmentCapture({
               </p>
             </div>
           </div>
-          <div className="bg-charcoal px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+          <div className="shrink-0 bg-charcoal px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:py-2">
             {cameraStatus === 'unavailable' ? (
               <div className="grid gap-2">
                 <button type="button" onClick={() => setStage('setup')} className="btn-secondary border-white/20 bg-white/10 text-white">

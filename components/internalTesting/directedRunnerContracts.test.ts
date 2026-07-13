@@ -3,6 +3,15 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
 describe('directed runner controls', () => {
+  it('does not leak the tracking collector boolean through session overlay callbacks', () => {
+    const source = readFileSync('app/session/[id]/SessionPlayer.tsx', 'utf8')
+    const safeCallbacks = source.match(/onRecord=\{issue => \{\s*debugCollectorRef\.current\.record\('blocker', \{ issue: issue as never \}\)\s*\}\}/g)
+    const safeForceContinues = source.match(/onForceContinue=\{\(\) => \{\s*internalSessionAdapter\.syntheticComplete\(`exercise:\$\{exercise\?\.name \?\? 'unknown'\}`\)\s*\}\}/g)
+
+    assert.equal(safeCallbacks?.length, 2)
+    assert.equal(safeForceContinues?.length, 2)
+  })
+
   it('keeps the standing assessment separate from the supine Arm Arcs training profile', () => {
     const registry = readFileSync('lib/internalTesting/movementRegistry.ts', 'utf8')
     assert.match(registry, /id: 'assessment:side_arm_raise',[\s\S]*?exerciseName: 'Standing arm raise'/)

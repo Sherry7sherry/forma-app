@@ -2036,9 +2036,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 	      <div className="fixed inset-0 h-[100dvh] w-screen bg-black overflow-hidden">
 	        {internalSessionAdapter && (
             <InternalTestOverlay movement={exercise?.name ?? 'Session'} phase={activeStage}
-              onRecord={issue => debugCollectorRef.current.record('blocker', { issue: issue as never })}
+              onRecord={issue => {
+                debugCollectorRef.current.record('blocker', { issue: issue as never })
+              }}
               onRetry={() => internalSessionAdapter.retryCalibration()}
-              onForceContinue={() => internalSessionAdapter.syntheticComplete(`exercise:${exercise?.name ?? 'unknown'}`)}
+              onForceContinue={() => {
+                internalSessionAdapter.syntheticComplete(`exercise:${exercise?.name ?? 'unknown'}`)
+              }}
               onEnd={() => setPhase('finished')} />
           )}
 	        {repFlash && (
@@ -2268,9 +2272,13 @@ export default function SessionPlayer({ plan, userId, isPro, voiceCoachingEnable
 	    <div className="min-h-dvh bg-charcoal flex flex-col">
 	      {internalSessionAdapter && (
           <InternalTestOverlay movement={exercise?.name ?? 'Session'} phase="exercising"
-            onRecord={issue => debugCollectorRef.current.record('blocker', { issue: issue as never })}
+            onRecord={issue => {
+              debugCollectorRef.current.record('blocker', { issue: issue as never })
+            }}
             onRetry={() => internalSessionAdapter.retryCalibration()}
-            onForceContinue={() => internalSessionAdapter.syntheticComplete(`exercise:${exercise?.name ?? 'unknown'}`)}
+            onForceContinue={() => {
+              internalSessionAdapter.syntheticComplete(`exercise:${exercise?.name ?? 'unknown'}`)
+            }}
             onEnd={() => setPhase('finished')} />
         )}
 	      {repFlash && (
