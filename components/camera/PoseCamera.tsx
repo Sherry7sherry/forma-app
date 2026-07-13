@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { CameraOrientation } from '@/lib/exerciseTracking'
-import { visibleLandmarkCount } from '@/lib/poseTracking'
+import { evaluateSeatedTorsoFraming, visibleLandmarkCount } from '@/lib/poseTracking'
 import {
   createDetectionGeometry,
   detectionLandmarkToSource,
@@ -46,6 +46,7 @@ export type FramingStatus =
  *    (the parent owns exercise name / reps / timer, and voice carries the coaching) */
 export type OverlayMode = 'full' | 'calibration' | 'minimal'
 export type CameraLifecycleStatus = 'loading' | 'ready' | 'unavailable'
+export type FramingRequirement = 'full-body' | 'seated-torso'
 
 export interface PoseResult {
   /** 0–100 form score, or null when no honest score can be computed for this
@@ -116,6 +117,8 @@ interface Props {
   recoveryMode?: 'internal' | 'external'
   /** Assessments favor landmark recall; regular sessions retain the lighter mobile model. */
   posePrecision?: 'standard' | 'assessment'
+  /** Lets seated assessments use the torso landmarks they actually measure. */
+  framingRequirement?: FramingRequirement
 }
 
 function loadScript(src: string): Promise<void> {
@@ -174,8 +177,20 @@ function visibleBounds(lm: any[], indices: number[], minVisibility = 0.25) {
   }
 }
 
-function classifyFraming(lm: any[], isFloorExercise = false): { status: FramingStatus; bodyConfidence: number } {
+function classifyFraming(
+  lm: any[],
+  isFloorExercise = false,
+  framingRequirement: FramingRequirement = 'full-body',
+): { status: FramingStatus; bodyConfidence: number } {
   if (!lm || lm.length < 29) return { status: 'no-body', bodyConfidence: 0 }
+
+  if (framingRequirement === 'seated-torso') {
+    const seated = evaluateSeatedTorsoFraming(lm)
+    if (seated.ready) return { status: 'full-body', bodyConfidence: seated.confidence }
+    const coreConfidence = avgVisibility(lm, [11, 12, 23, 24])
+    if (coreConfidence >= 0.45) return { status: 'partial', bodyConfidence: coreConfidence * 0.6 }
+    return { status: 'no-body', bodyConfidence: 0 }
+  }
 
   const upperConf = avgVisibility(lm, UPPER_BODY_LM)
   const lowerConf = avgVisibility(lm, LOWER_BODY_LM)
@@ -339,6 +354,22 @@ const MOBILE_FRAMING_GUIDANCE: Record<FramingStatus, { headline: string; tips: s
   'full-body': { headline: '', tips: [] },
 }
 
+const SEATED_FRAMING_GUIDANCE: Record<FramingStatus, { headline: string; tips: string[] }> = {
+  'no-body': {
+    headline: "We can't see your seated position yet",
+    tips: ['Keep your head, both shoulders, and both hips in view', 'Move closer so your torso is not too small'],
+  },
+  'upper-body': {
+    headline: 'Keep your shoulders and hips visible',
+    tips: ['Center your seated torso in the frame', 'Keep both shoulders and both hips clear'],
+  },
+  'partial': {
+    headline: 'Adjust your seated framing',
+    tips: ['Keep both shoulders and hips clear', 'Move closer so your torso fills more of the frame'],
+  },
+  'full-body': { headline: '', tips: [] },
+}
+
 /** Exercise-specific framing tips shown when the camera can't see the full body.
  *  These override the generic tips when the exercise name matches. */
 const EXERCISE_FRAMING_TIPS: Record<string, { headline: string; tips: string[] }> = {
@@ -429,7 +460,7 @@ export default function PoseCamera({
   isFloorExercise = false, formScoreSupported = true,
   fill = false, overlayMode = 'full',
   cameraOrientation = 'either', trackingLandmarks = [], trackingMinVisibility = 0.5,
-  recoveryMode = 'internal', posePrecision = 'standard',
+  recoveryMode = 'internal', posePrecision = 'standard', framingRequirement = 'full-body',
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef     = useRef<HTMLVideoElement>(null)
@@ -488,6 +519,7 @@ export default function PoseCamera({
   const onCameraStatusRef = useRef(onCameraStatus)
   const formScoreSupportedRef = useRef(formScoreSupported)
   const isFloorExerciseRef = useRef(isFloorExercise)
+  const framingRequirementRef = useRef(framingRequirement)
   const trackingConfigRef = useRef({ landmarks: trackingLandmarks, minVisibility: trackingMinVisibility })
   const deviceInfoRef = useRef(deviceInfo)
   const debugEnabledRef = useRef(false)
@@ -497,6 +529,7 @@ export default function PoseCamera({
   useEffect(() => { onCameraStatusRef.current = onCameraStatus }, [onCameraStatus])
   useEffect(() => { formScoreSupportedRef.current = formScoreSupported }, [formScoreSupported])
   useEffect(() => { isFloorExerciseRef.current = isFloorExercise }, [isFloorExercise])
+  useEffect(() => { framingRequirementRef.current = framingRequirement }, [framingRequirement])
   useEffect(() => {
     trackingConfigRef.current = { landmarks: trackingLandmarks, minVisibility: trackingMinVisibility }
   }, [trackingLandmarks, trackingMinVisibility])
@@ -645,7 +678,11 @@ export default function PoseCamera({
       : rawLandmarks
     lastLandmarksRef.current = lm
 
-    const { status: framing, bodyConfidence } = classifyFraming(lm, isFloorExerciseRef.current)
+    const { status: framing, bodyConfidence } = classifyFraming(
+      lm,
+      isFloorExerciseRef.current,
+      framingRequirementRef.current,
+    )
     const trackingConfig = trackingConfigRef.current
     const currentDeviceInfo = deviceInfoRef.current
     const detectionNow = performance.now()
@@ -901,7 +938,9 @@ export default function PoseCamera({
   const showSwitch = fill && status === 'ready' && cameraCount > 1
   // Exercise-specific framing guidance takes priority over the generic status message.
   const exerciseGuidance = exerciseName ? EXERCISE_FRAMING_TIPS[exerciseName] : undefined
-  const deviceGuidance = isMobile || isTablet ? MOBILE_FRAMING_GUIDANCE : FRAMING_GUIDANCE
+  const deviceGuidance = framingRequirement === 'seated-torso'
+    ? SEATED_FRAMING_GUIDANCE
+    : isMobile || isTablet ? MOBILE_FRAMING_GUIDANCE : FRAMING_GUIDANCE
   const guidance = exerciseGuidance ?? deviceGuidance[framingStatus]
   const adaptiveGuidanceTips = guidance.tips
   const needsLandscape = cameraOrientation === 'landscape' && deviceInfo.orientation === 'portrait'
@@ -914,7 +953,7 @@ export default function PoseCamera({
   // Compact framing chip label/colour — the single "one status icon" the
   // camera-first minimal overlay keeps on screen.
   const framingChip = isFullBody
-    ? { cls: 'bg-sage/80 text-white', label: <><span>✓</span> Full body</> }
+    ? { cls: 'bg-sage/80 text-white', label: <><span>✓</span> {framingRequirement === 'seated-torso' ? 'Seated framing ready' : 'Full body'}</> }
     : framingStatus === 'upper-body'
     ? { cls: 'bg-amber-500/80 text-white', label: <><span>⚠</span> Upper body only</> }
     : framingStatus === 'partial'

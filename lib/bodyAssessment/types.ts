@@ -7,6 +7,7 @@ export interface AssessmentPoseSample {
   capturedAt: number
   bodyConfidence: number
   landmarks: PoseLandmark[]
+  phase?: 'baseline' | 'movement'
 }
 
 export interface DerivedObservation {
@@ -21,7 +22,7 @@ export interface DerivedObservation {
   confidence: number
 }
 
-export type AssessmentFailureReason = 'insufficient_samples' | 'landmarks' | 'range'
+export type AssessmentFailureReason = 'insufficient_samples' | 'baseline_missing' | 'landmarks' | 'range'
 
 export type MovementDerivation =
   | { status: 'reliable'; overallConfidence: number; observations: DerivedObservation[] }

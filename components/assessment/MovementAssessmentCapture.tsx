@@ -8,6 +8,8 @@ import type { CameraLifecycleStatus, FramingStatus, PoseResult } from '@/compone
 import {
   deriveMovementObservations,
   evaluateMovementEvidence,
+  hasMovementCoverage,
+  isNeutralRollDownBaseline,
   type AssessmentFailureReason,
   type MovementEvidence,
   type AssessmentPoseSample,
@@ -66,12 +68,16 @@ export default function MovementAssessmentCapture({
   const confidencesRef = useRef<number[]>([])
   const lastSampleAtRef = useRef(0)
   const stableFullBodyFramesRef = useRef(0)
+  const stableBaselineFramesRef = useRef(0)
   const [movementIndex, setMovementIndex] = useState(0)
   const [stage, setStage] = useState<'setup' | 'capture'>('setup')
   const [cameraStatus, setCameraStatus] = useState<CameraLifecycleStatus>('loading')
   const [framingStatus, setFramingStatus] = useState<FramingStatus>('no-body')
   const [deviceClass, setDeviceClass] = useState<PoseResult['diagnostics']['deviceClass']>('desktop')
+  const [guidanceSide, setGuidanceSide] = useState<'left' | 'right'>('right')
   const [calibrated, setCalibrated] = useState(false)
+  const [baselineReady, setBaselineReady] = useState(false)
+  const [baselineFrameCount, setBaselineFrameCount] = useState(0)
   const [evidence, setEvidence] = useState<MovementEvidence>(EMPTY_EVIDENCE)
   const [checking, setChecking] = useState(false)
   const [singleArmCompare, setSingleArmCompare] = useState(false)
@@ -84,37 +90,94 @@ export default function MovementAssessmentCapture({
   const handlePoseResult = useCallback((result: PoseResult) => {
     setFramingStatus(result.framingStatus)
     setDeviceClass(result.diagnostics.deviceClass)
+    if (result.landmarks.length > 24) {
+      const torsoCenter = [11, 12, 23, 24]
+        .reduce((sum, index) => sum + (result.landmarks[index]?.x ?? 0.5), 0) / 4
+      setGuidanceSide(torsoCenter < 0.5 ? 'left' : 'right')
+    }
     const now = Date.now()
     if (now - lastSampleAtRef.current < 180 || !result.landmarks.length) return
     lastSampleAtRef.current = now
 
     if (!calibrated) {
-      if (result.framingStatus === 'full-body' && result.bodyConfidence >= 0.65) {
+      const movementCalibrationReady = movement?.key === 'seated_trunk_rotation'
+        ? result.framingStatus === 'full-body'
+          && hasMovementCoverage(movement.key, {
+            capturedAt: now, bodyConfidence: result.bodyConfidence, landmarks: result.landmarks,
+          })
+        : result.framingStatus === 'full-body' && result.bodyConfidence >= 0.65
+      if (movementCalibrationReady) {
         stableFullBodyFramesRef.current += 1
-        if (stableFullBodyFramesRef.current >= CALIBRATION_FRAMES) setCalibrated(true)
+        if (stableFullBodyFramesRef.current >= CALIBRATION_FRAMES) {
+          setCalibrated(true)
+          const needsBaseline = movement?.key === 'standing_roll_down'
+          setBaselineReady(!needsBaseline)
+          if (needsBaseline) setEvidence({ ...EMPTY_EVIDENCE, reason: 'baseline_missing' })
+        }
       } else {
         stableFullBodyFramesRef.current = 0
       }
       return
     }
 
-    samplesRef.current.push({
+    const nextSample: AssessmentPoseSample = {
       capturedAt: now,
       bodyConfidence: result.bodyConfidence,
       landmarks: result.landmarks,
-    })
-    if (samplesRef.current.length > 90) samplesRef.current.shift()
-    if (movement) setEvidence(evaluateMovementEvidence(movement.key, samplesRef.current))
-  }, [calibrated, movement])
+      phase: 'movement',
+    }
 
-  function openCamera() {
+    if (movement?.key === 'standing_roll_down' && !baselineReady) {
+      const baselineSample = { ...nextSample, phase: 'baseline' as const }
+      if (!hasMovementCoverage(movement.key, baselineSample)) {
+        samplesRef.current = samplesRef.current.filter(sample => sample.phase !== 'baseline')
+        stableBaselineFramesRef.current = 0
+        setBaselineFrameCount(0)
+        setEvidence({ ...EMPTY_EVIDENCE, reason: 'landmarks' })
+        return
+      }
+      if (!isNeutralRollDownBaseline(baselineSample)) {
+        samplesRef.current = samplesRef.current.filter(sample => sample.phase !== 'baseline')
+        stableBaselineFramesRef.current = 0
+        setBaselineFrameCount(0)
+        setEvidence({ ...EMPTY_EVIDENCE, reason: 'baseline_missing' })
+        return
+      }
+      samplesRef.current.push(baselineSample)
+      stableBaselineFramesRef.current += 1
+      setBaselineFrameCount(stableBaselineFramesRef.current)
+      setEvidence({ ...EMPTY_EVIDENCE, totalSampleCount: samplesRef.current.length, reason: 'baseline_missing' })
+      if (stableBaselineFramesRef.current >= 3) {
+        setBaselineReady(true)
+        setEvidence({ ...EMPTY_EVIDENCE, totalSampleCount: samplesRef.current.length })
+      }
+      return
+    }
+
+    samplesRef.current.push(nextSample)
+    if (samplesRef.current.length > 90) {
+      const oldestMovementIndex = samplesRef.current.findIndex(sample => sample.phase !== 'baseline')
+      if (oldestMovementIndex >= 0) samplesRef.current.splice(oldestMovementIndex, 1)
+    }
+    if (movement) setEvidence(evaluateMovementEvidence(movement.key, samplesRef.current))
+  }, [baselineReady, calibrated, movement])
+
+  function resetCaptureState() {
     samplesRef.current = []
     lastSampleAtRef.current = 0
     stableFullBodyFramesRef.current = 0
+    stableBaselineFramesRef.current = 0
     setCalibrated(false)
+    setBaselineReady(false)
+    setBaselineFrameCount(0)
     setEvidence(EMPTY_EVIDENCE)
-    setCameraStatus('loading')
     setFramingStatus('no-body')
+    setGuidanceSide('right')
+  }
+
+  function openCamera() {
+    resetCaptureState()
+    setCameraStatus('loading')
     setStage('capture')
   }
 
@@ -147,6 +210,7 @@ export default function MovementAssessmentCapture({
     setMovementIndex(index => index + 1)
     setSingleArmCompare(false)
     setChecking(false)
+    resetCaptureState()
     setStage('setup')
   }
 
@@ -154,7 +218,7 @@ export default function MovementAssessmentCapture({
     if (!movement || !internalTestAdapter) return
     internalTestAdapter.syntheticComplete(movement.id, 'tester-blocked')
     if (movementIndex === movements.length - 1) { internalTestAdapter.endCoverage(); onExit(); return }
-    setMovementIndex(index => index + 1); setStage('setup'); setCalibrated(false); setEvidence(EMPTY_EVIDENCE)
+    setMovementIndex(index => index + 1); resetCaptureState(); setStage('setup')
   }
 
   if (!movement) {
@@ -224,29 +288,61 @@ export default function MovementAssessmentCapture({
               overlayMode="minimal"
               recoveryMode="external"
               posePrecision="assessment"
+              framingRequirement={movement.key === 'seated_trunk_rotation' ? 'seated-torso' : 'full-body'}
             />
-            <div className={`pointer-events-none absolute bg-black/65 backdrop-blur-sm ${
-              !calibrated ? 'left-auto right-3 top-16 max-w-[240px] rounded-2xl p-3' : 'inset-x-4 bottom-4 rounded-3xl p-4'
+            <div className={`pointer-events-none absolute top-16 max-w-[260px] rounded-2xl bg-black/65 p-3 backdrop-blur-sm ${
+              guidanceSide === 'left' ? 'left-3' : 'right-3'
             }`}>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sage-light">{movement.view}</p>
               <p className="mt-1 text-sm leading-relaxed text-white">
-                {calibrated ? movement.cue : framingStatus === 'full-body'
+                {!calibrated ? movement.key === 'seated_trunk_rotation'
+                  ? framingStatus === 'full-body'
+                    ? 'Seated framing ready. Hold still while tracking stabilizes.'
+                    : 'Keep both shoulders and hips clear, with your torso filling the frame.'
+                  : framingStatus === 'full-body'
                   ? 'Hold still for a moment while tracking stabilizes.'
                   : deviceClass === 'phone'
                     ? 'Lower or tilt your phone downward. Keep your head and feet visible and fill more of the screen.'
                     : deviceClass === 'tablet'
                       ? 'Lower or tilt your tablet downward so your head and feet stay visible.'
-                      : 'Tilt the screen or camera downward so your feet enter the frame. On a laptop, place it near hip height, about 2–3 m away.'}
+                      : 'Tilt the screen or camera downward so your feet enter the frame. On a laptop, place it near hip height, about 2–3 m away.'
+                  : movement.key === 'standing_roll_down' && !baselineReady
+                    ? evidence.reason === 'landmarks'
+                      ? 'Keep one wrist and ankle visible on the same side.'
+                      : 'Stand tall and hold still before you begin.'
+                    : movement.cue}
               </p>
               {calibrated && reducedRange && <p className="mt-1 text-xs text-sage-light">Stay inside your smaller comfortable range.</p>}
               {calibrated && singleArmCompare && <p className="mt-1 text-xs text-sage-light">Finish with the optional one-arm comparison.</p>}
               <p className="mt-2 text-xs text-white/55">
                 {!calibrated
-                  ? framingStatus === 'full-body'
-                    ? 'Calibrating… hold your full body steady in frame.'
-                    : 'Head and feet must remain visible before movement capture starts.'
+                  ? movement.key === 'seated_trunk_rotation'
+                    ? framingStatus === 'full-body'
+                      ? 'Calibrating seated torso… hold still for a moment.'
+                      : 'Both shoulders and hips must remain visible; feet are not required.'
+                    : framingStatus === 'full-body'
+                      ? 'Calibrating… hold your full body steady in frame.'
+                      : 'Head and feet must remain visible before movement capture starts.'
+                  : movement.key === 'seated_trunk_rotation'
+                    ? framingStatus !== 'full-body'
+                      ? 'Both shoulders and hips must remain visible; feet are not required.'
+                      : evidence.reason === 'landmarks'
+                        ? 'Keep both shoulders and hips clear while rotating.'
+                        : evidence.reason === 'range'
+                          ? 'Complete a gentle turn to both sides, returning through center.'
+                          : evidence.ready
+                            ? 'Enough clear left-and-right rotation captured — finish when ready.'
+                            : `Capturing seated rotation… ${evidence.validSampleCount} valid frames.`
+                  : movement.key === 'standing_roll_down' && !baselineReady
+                    ? evidence.reason === 'landmarks'
+                      ? 'Tracking needs one clear near-side wrist, hip, and ankle.'
+                      : `Capturing neutral baseline… ${baselineFrameCount}/3 stable frames.`
                   : evidence.ready
                     ? 'Enough clear movement captured — finish when ready.'
+                    : evidence.reason === 'baseline_missing'
+                      ? 'Stand tall and hold still before starting the movement.'
+                    : evidence.reason === 'landmarks'
+                      ? 'Keep one wrist and ankle visible while you move.'
                     : evidence.reason === 'range'
                       ? 'Keep going through the instructed comfortable movement.'
                       : `Capturing clear movement… ${evidence.validSampleCount} valid frames.`}

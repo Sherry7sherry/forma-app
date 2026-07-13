@@ -30,6 +30,35 @@ export function hasTrackingCoverage(
   return visibleLandmarkCount(landmarks, indices, options.minVisibility) >= required
 }
 
+export function evaluateSeatedTorsoFraming(
+  landmarks: PoseLandmark[] | null | undefined,
+): { ready: boolean; confidence: number } {
+  if (!landmarks || landmarks.length < 25) return { ready: false, confidence: 0 }
+  const coreIndices = [11, 12, 23, 24]
+  const coreVisibility = coreIndices.map(index => landmarks[index]?.visibility ?? 0)
+  const coreConfidence = coreVisibility.reduce((sum, value) => sum + value, 0) / coreVisibility.length
+  const headConfidence = landmarks[0]?.visibility ?? 0
+  const shoulders = centroid([landmarks[11], landmarks[12]])
+  const hips = centroid([landmarks[23], landmarks[24]])
+  const torsoSpan = Math.hypot(shoulders.x - hips.x, shoulders.y - hips.y)
+  const requiredPoints = [landmarks[0], ...coreIndices.map(index => landmarks[index])]
+  const withinFrame = requiredPoints.every(point => point
+    && point.x >= -0.05 && point.x <= 1.05
+    && point.y >= -0.05 && point.y <= 1.05)
+  const ready = headConfidence >= 0.55
+    && coreVisibility.every(value => value >= 0.65)
+    && torsoSpan >= 0.12
+    && withinFrame
+  return {
+    ready,
+    confidence: ready ? (coreConfidence * 0.8) + (headConfidence * 0.2) : 0,
+  }
+}
+
+export function hasSeatedTorsoFraming(landmarks: PoseLandmark[] | null | undefined): boolean {
+  return evaluateSeatedTorsoFraming(landmarks).ready
+}
+
 function centroid(points: PoseLandmark[]) {
   return points.reduce(
     (sum, point) => ({ x: sum.x + point.x / points.length, y: sum.y + point.y / points.length }),

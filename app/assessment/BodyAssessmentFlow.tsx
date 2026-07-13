@@ -39,6 +39,10 @@ const FAILURE_GUIDANCE: Record<AssessmentFailureReason, { title: string; body: s
     title: 'We need a little more clear movement.',
     body: 'Keep your full body in frame and complete the instructed repetitions before finishing.',
   },
+  baseline_missing: {
+    title: 'We need a clear standing start.',
+    body: 'Stand tall and hold still with one wrist and ankle visible before beginning the Roll Down.',
+  },
   landmarks: {
     title: 'Some key body points stayed out of view.',
     body: 'Adjust the camera downward so your head and feet stay visible, with steady lighting and no persistent obstruction.',
