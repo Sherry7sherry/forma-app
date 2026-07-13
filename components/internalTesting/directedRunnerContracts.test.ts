@@ -9,6 +9,14 @@ describe('directed runner controls', () => {
     assert.doesNotMatch(registry, /id: 'assessment:side_arm_raise',[\s\S]*?exerciseName: 'Arm Arcs'/)
   })
 
+  it('gives every record action an immediate, visible success or failure state', () => {
+    const overlay = readFileSync('components/internalTesting/InternalTestOverlay.tsx', 'utf8')
+    assert.match(overlay, /Saving internal test evidence/)
+    assert.match(overlay, /Problem recorded/)
+    assert.match(overlay, /Could not record/)
+    assert.match(overlay, /aria-live="polite"/)
+  })
+
   for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {
     it(`${name} persists report and force-continue actions`, () => {
       const source = readFileSync(`components/internalTesting/${name}`, 'utf8')

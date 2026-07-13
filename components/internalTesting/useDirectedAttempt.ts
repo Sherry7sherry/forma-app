@@ -56,22 +56,14 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
   }, [attemptId])
 
   const recordIssue = useCallback(async (issue: unknown) => {
-    try {
-      await append({ eventType: 'blocker', elapsedMs: 0, issue })
-      setNotice('Problem recorded. You can retry or record and continue.')
-    } catch (error) {
-      setNotice(`Could not record problem: ${error instanceof Error ? error.message : 'unknown error'}`)
-    }
+    await append({ eventType: 'blocker', elapsedMs: 0, issue })
+    setNotice('Problem recorded. You can retry or record and continue.')
   }, [append])
 
   const forceContinue = useCallback(async () => {
-    try {
-      await append({ eventType: 'synthetic_transition', elapsedMs: 0, reason: 'tester-force-continue', synthetic: true })
-      await request(`/api/internal-tests/attempts/${attemptId}/complete`, { status: 'skipped', synthetic: true })
-      setNotice('Synthetic continuation recorded. This did not update production data.')
-    } catch (error) {
-      setNotice(`Could not continue: ${error instanceof Error ? error.message : 'unknown error'}`)
-    }
+    await append({ eventType: 'synthetic_transition', elapsedMs: 0, reason: 'tester-force-continue', synthetic: true })
+    await request(`/api/internal-tests/attempts/${attemptId}/complete`, { status: 'skipped', synthetic: true })
+    setNotice('Synthetic continuation recorded. This did not update production data.')
   }, [append, attemptId])
 
   return { notice, recordIssue, forceContinue }
