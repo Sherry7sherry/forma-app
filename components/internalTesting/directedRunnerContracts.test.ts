@@ -20,10 +20,30 @@ describe('directed runner controls', () => {
 
   it('gives every record action an immediate, visible success or failure state', () => {
     const overlay = readFileSync('components/internalTesting/InternalTestOverlay.tsx', 'utf8')
+    const issueSheet = readFileSync('components/internalTesting/ReportIssueSheet.tsx', 'utf8')
     assert.match(overlay, /Saving internal test evidence/)
     assert.match(overlay, /Problem recorded/)
     assert.match(overlay, /Could not record/)
+    assert.match(issueSheet, /Log issue/)
+    assert.match(overlay, /Log \+ continue/)
     assert.match(overlay, /aria-live="polite"/)
+  })
+
+  it('records lightweight pose diagnostics without implying video capture', () => {
+    const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
+    assert.match(hook, /recordPoseDiagnostics/)
+    assert.match(hook, /eventType: 'pose_sample'/)
+    assert.match(hook, /visibleLandmarks: diagnostics\.visibleLandmarks/)
+    assert.match(hook, /is logging diagnostics/)
+    assert.doesNotMatch(hook, /Blob|MediaRecorder|getDisplayMedia|videoFrame/)
+    assert.doesNotMatch(hook, /is recording/)
+
+    for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {
+      const source = readFileSync(`components/internalTesting/${name}`, 'utf8')
+      assert.match(source, /recordPoseDiagnostics/)
+      assert.match(source, /onPoseResult=\{recordPoseDiagnostics\}/)
+      assert.doesNotMatch(source, /onPoseResult=\{\(\)=>\{\}\}/)
+    }
   })
 
   it('advances a directed assessment after a successful synthetic continuation', () => {
