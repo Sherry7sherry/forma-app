@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 
 describe('directed runner controls', () => {
+  it('keeps the standing assessment separate from the supine Arm Arcs training profile', () => {
+    const registry = readFileSync('lib/internalTesting/movementRegistry.ts', 'utf8')
+    assert.match(registry, /id: 'assessment:side_arm_raise',[\s\S]*?exerciseName: 'Standing arm raise'/)
+    assert.doesNotMatch(registry, /id: 'assessment:side_arm_raise',[\s\S]*?exerciseName: 'Arm Arcs'/)
+  })
+
   for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {
     it(`${name} persists report and force-continue actions`, () => {
       const source = readFileSync(`components/internalTesting/${name}`, 'utf8')

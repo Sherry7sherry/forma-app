@@ -28,7 +28,7 @@ export const ASSESSMENT_TEST_MOVEMENTS: readonly AssessmentTestableMovement[] = 
     kind: 'assessment',
     assessmentMovementKey: 'side_arm_raise',
     displayName: 'Standing arm raise',
-    exerciseName: 'Arm Arcs',
+    exerciseName: 'Standing arm raise',
     postureFamily: 'standing',
     trackingMode: 'manual',
     orientation: 'either',
