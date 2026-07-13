@@ -38,13 +38,13 @@ describe('movement registry', () => {
     )
   })
 
-  it('uses the approved Standing arm raise label while retaining the Arm Arcs tracking profile', () => {
+  it('keeps Standing arm raise separate from the supine Arm Arcs training profile', () => {
     const armArcs = getTestableMovement('assessment:side_arm_raise')
     assert.equal(armArcs?.displayName, 'Standing arm raise')
     assert.equal(armArcs?.kind, 'assessment')
     if (armArcs?.kind === 'assessment') {
       assert.equal(armArcs.title, 'Standing arm raise')
-      assert.equal(armArcs.exerciseName, 'Arm Arcs')
+      assert.equal(armArcs.exerciseName, 'Standing arm raise')
     }
   })
 
