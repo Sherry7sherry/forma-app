@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 
 import {
   hasTrackingCoverage,
+  hasSeatedTorsoFraming,
   isWithinTrackingGrace,
   normalizedPoseDistance,
   type PoseLandmark,
@@ -40,6 +41,31 @@ describe('hasTrackingCoverage', () => {
       minVisibleRatio: 0.7,
       minVisibleLandmarks: 6,
     }), false)
+  })
+})
+
+describe('hasSeatedTorsoFraming', () => {
+  it('accepts a readable head, shoulders, and hips without requiring legs or feet', () => {
+    const pose = landmarks()
+    pose[0] = { x: 0.5, y: 0.16, visibility: 0.95 }
+    pose[11] = { x: 0.4, y: 0.34, visibility: 0.95 }
+    pose[12] = { x: 0.6, y: 0.34, visibility: 0.95 }
+    pose[23] = { x: 0.43, y: 0.62, visibility: 0.95 }
+    pose[24] = { x: 0.57, y: 0.62, visibility: 0.95 }
+    for (const index of [25, 26, 27, 28]) pose[index].visibility = 0.05
+    assert.equal(hasSeatedTorsoFraming(pose), true)
+  })
+
+  it('rejects missing shoulder or hip landmarks and a person who is too small', () => {
+    const missingCore = landmarks()
+    missingCore[23].visibility = 0.1
+    assert.equal(hasSeatedTorsoFraming(missingCore), false)
+
+    const tooSmall = landmarks()
+    tooSmall[0] = { x: 0.5, y: 0.4, visibility: 0.95 }
+    for (const index of [11, 12]) tooSmall[index] = { x: 0.5, y: 0.46, visibility: 0.95 }
+    for (const index of [23, 24]) tooSmall[index] = { x: 0.5, y: 0.52, visibility: 0.95 }
+    assert.equal(hasSeatedTorsoFraming(tooSmall), false)
   })
 })
 

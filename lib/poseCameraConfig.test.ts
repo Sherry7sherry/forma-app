@@ -120,8 +120,43 @@ describe('Movement assessment capture readiness', () => {
   })
 
   it('keeps the foot area visible by moving the compact calibration prompt away from the bottom', () => {
-    assert.match(source, /!calibrated\s*\?\s*'[^']*top-/)
-    assert.match(source, /calibrated\s*\?\s*movement\.cue/)
+    assert.match(source, /absolute top-16/)
+    assert.doesNotMatch(source, /calibrated\s*\?\s*'[^']*bottom-4/)
+    assert.doesNotMatch(source, /inset-x-4 bottom-4 rounded-3xl/)
+  })
+
+  it('collects a neutral roll-down baseline and explains each readiness blocker', () => {
+    assert.match(source, /baselineReady/)
+    assert.match(source, /phase:\s*'baseline'/)
+    assert.match(source, /baseline_missing/)
+    assert.match(source, /Stand tall and hold still/i)
+    assert.match(source, /Keep one wrist and ankle visible/i)
+  })
+
+  it('resets every capture accumulator when movement one advances to movement two', () => {
+    assert.match(source, /function resetCaptureState/)
+    for (const reset of [
+      /samplesRef\.current\s*=\s*\[\]/,
+      /lastSampleAtRef\.current\s*=\s*0/,
+      /stableFullBodyFramesRef\.current\s*=\s*0/,
+      /setCalibrated\(false\)/,
+      /setBaselineReady\(false\)/,
+      /setEvidence\(EMPTY_EVIDENCE\)/,
+    ]) assert.match(source, reset)
+    assert.match(source, /setMovementIndex[\s\S]*resetCaptureState\(\)[\s\S]*setStage\('setup'\)/)
+  })
+
+  it('uses seated-torso calibration for movement three instead of requiring feet', () => {
+    assert.match(source, /framingRequirement=\{movement\.key === 'seated_trunk_rotation'\s*\?\s*'seated-torso'/)
+    assert.match(source, /Seated framing ready/)
+    assert.match(source, /Keep both shoulders and hips clear/i)
+    assert.match(source, /Complete a gentle turn to both sides/i)
+  })
+
+  it('moves the compact prompt to the blank side of the tracked torso', () => {
+    assert.match(source, /guidanceSide/)
+    assert.match(source, /guidanceSide === 'left'\s*\?\s*'left-3'/)
+    assert.doesNotMatch(source, /inset-x-4 bottom-4/)
   })
 })
 
@@ -134,6 +169,7 @@ describe('Assessment failure copy', () => {
       assert.match(source, /insufficient_samples/)
       assert.match(source, /landmarks/)
       assert.match(source, /range/)
+      assert.match(source, /baseline_missing/)
     }
   })
 })

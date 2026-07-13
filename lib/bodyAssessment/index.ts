@@ -1,4 +1,9 @@
-export { deriveMovementObservations, evaluateMovementEvidence } from './metrics'
+export {
+  deriveMovementObservations,
+  evaluateMovementEvidence,
+  hasMovementCoverage,
+  isNeutralRollDownBaseline,
+} from './metrics'
 export type { MovementEvidence } from './metrics'
 export {
   buildAssessmentCompletion,

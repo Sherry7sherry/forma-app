@@ -35,6 +35,15 @@ function sample(capturedAt: number, overrides: Record<number, Partial<PoseLandma
   return { capturedAt, bodyConfidence, landmarks: pose(overrides) }
 }
 
+function phasedSample(
+  capturedAt: number,
+  phase: 'baseline' | 'movement',
+  overrides: Record<number, Partial<PoseLandmark>> = {},
+  bodyConfidence = 0.9,
+): AssessmentPoseSample {
+  return { ...sample(capturedAt, overrides, bodyConfidence), phase }
+}
+
 function fixtureSamples(movement: BodyMirrorMovement): AssessmentPoseSample[] {
   if (movement === 'side_arm_raise') {
     const cycle = [
@@ -45,10 +54,12 @@ function fixtureSamples(movement: BodyMirrorMovement): AssessmentPoseSample[] {
   }
   if (movement === 'standing_roll_down') {
     const cycle = [
-      sample(0),
-      sample(500, { 11: { y: 0.52 }, 12: { y: 0.52 }, 15: { y: 0.94 }, 16: { y: 0.94 } }),
+      phasedSample(0, 'movement'),
+      phasedSample(500, 'movement', { 11: { y: 0.52 }, 12: { y: 0.52 }, 15: { y: 0.94 }, 16: { y: 0.94 } }),
     ]
-    return Array.from({ length: 10 }, (_, index) => ({ ...cycle[index % 2], capturedAt: index * 200 }))
+    const baseline = Array.from({ length: 3 }, (_, index) => phasedSample(index * 200, 'baseline'))
+    const movementSamples = Array.from({ length: 10 }, (_, index) => ({ ...cycle[index % 2], capturedAt: 800 + index * 200 }))
+    return [...baseline, ...movementSamples]
   }
   const cycle = [
     sample(0),
@@ -154,5 +165,93 @@ describe('deriveMovementObservations', () => {
       capturedAt: index * 200,
     }))
     assert.equal(evaluateMovementEvidence('side_arm_raise', moving).ready, true)
+  })
+
+  it('accepts roll down when the far wrist and ankle overlap but one complete side chain remains readable', () => {
+    const samples = fixtureSamples('standing_roll_down').map(entry => ({
+      ...entry,
+      landmarks: entry.landmarks.map((point, index) =>
+        [16, 28].includes(index) ? { ...point, visibility: 0.25 } : point),
+    }))
+    assert.equal(evaluateMovementEvidence('standing_roll_down', samples).ready, true)
+    assert.equal(deriveMovementObservations('standing_roll_down', samples).status, 'reliable')
+  })
+
+  it('rejects roll down when neither ankle or neither wrist is persistently readable', () => {
+    for (const hidden of [[27, 28], [15, 16]]) {
+      const samples = fixtureSamples('standing_roll_down').map(entry => ({
+        ...entry,
+        landmarks: entry.landmarks.map((point, index) =>
+          hidden.includes(index) ? { ...point, visibility: 0.2 } : point),
+      }))
+      const evidence = evaluateMovementEvidence('standing_roll_down', samples)
+      assert.equal(evidence.ready, false)
+      assert.equal(evidence.reason, 'landmarks')
+    }
+  })
+
+  it('requires an explicit neutral roll-down baseline before evaluating range', () => {
+    const withoutBaseline = fixtureSamples('standing_roll_down').map(entry => ({ ...entry, phase: 'movement' as const }))
+    const evidence = evaluateMovementEvidence('standing_roll_down', withoutBaseline)
+    assert.equal(evidence.ready, false)
+    assert.equal(evidence.reason, 'baseline_missing')
+  })
+
+  it('uses neutral baseline frames even when movement samples begin already bent', () => {
+    const baseline = Array.from({ length: 3 }, (_, index) => phasedSample(index * 200, 'baseline'))
+    const bent = Array.from({ length: 8 }, (_, index) => phasedSample(
+      800 + index * 200,
+      'movement',
+      { 11: { y: 0.52 }, 12: { y: 0.52 }, 15: { y: 0.94 }, 16: { y: 0.94 } },
+    ))
+    assert.equal(evaluateMovementEvidence('standing_roll_down', [...baseline, ...bent]).ready, true)
+  })
+
+  it('accepts a gentle neutral-left-right seated rotation', () => {
+    const cycle = [
+      sample(0),
+      sample(200, { 11: { z: -0.05 }, 12: { z: 0.05 } }),
+      sample(400, { 11: { z: 0.05 }, 12: { z: -0.05 } }),
+    ]
+    const samples = Array.from({ length: 12 }, (_, index) => ({ ...cycle[index % 3], capturedAt: index * 200 }))
+    assert.equal(evaluateMovementEvidence('seated_trunk_rotation', samples).ready, true)
+  })
+
+  it('rejects stillness, depth jitter, and only a small one-sided seated rotation', () => {
+    const cases = [
+      Array.from({ length: 10 }, (_, index) => sample(index * 200)),
+      Array.from({ length: 10 }, (_, index) => sample(index * 200, {
+        11: { z: index % 2 ? -0.004 : 0.004 },
+        12: { z: index % 2 ? 0.004 : -0.004 },
+      })),
+      Array.from({ length: 10 }, (_, index) => sample(index * 200, {
+        11: { z: index < 5 ? 0 : -0.008 },
+        12: { z: index < 5 ? 0 : 0.008 },
+      })),
+    ]
+    for (const samples of cases) {
+      const evidence = evaluateMovementEvidence('seated_trunk_rotation', samples)
+      assert.equal(evidence.ready, false)
+      assert.equal(evidence.reason, 'range')
+    }
+  })
+
+  it('tolerates a few transient seated shoulder or hip drops but rejects persistent loss', () => {
+    const good = fixtureSamples('seated_trunk_rotation')
+    const transient = good.map((entry, index) => index < 2 ? {
+      ...entry,
+      landmarks: entry.landmarks.map((point, landmarkIndex) =>
+        landmarkIndex === 11 ? { ...point, visibility: 0.2 } : point),
+    } : entry)
+    assert.equal(evaluateMovementEvidence('seated_trunk_rotation', transient).ready, true)
+
+    const persistent = good.map((entry, index) => index < 8 ? {
+      ...entry,
+      landmarks: entry.landmarks.map((point, landmarkIndex) =>
+        landmarkIndex === 23 ? { ...point, visibility: 0.2 } : point),
+    } : entry)
+    const evidence = evaluateMovementEvidence('seated_trunk_rotation', persistent)
+    assert.equal(evidence.ready, false)
+    assert.equal(evidence.reason, 'landmarks')
   })
 })

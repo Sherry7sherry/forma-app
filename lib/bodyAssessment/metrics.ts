@@ -16,6 +16,7 @@ const REQUIRED_LANDMARKS: Record<BodyMirrorMovement, number[]> = {
 const MIN_LANDMARK_VISIBILITY = 0.7
 const MIN_VALID_SAMPLES = 8
 const MIN_VALID_SAMPLE_RATIO = 0.6
+const MIN_BASELINE_SAMPLES = 3
 
 function average(values: number[]): number {
   return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0
@@ -61,6 +62,18 @@ function armRaiseSampleConfidence(sample: AssessmentPoseSample): number {
   return Math.min(sample.bodyConfidence, average([torso, Math.max(leftArm, rightArm)]))
 }
 
+function visible(sample: AssessmentPoseSample, indices: number[]): boolean {
+  return indices.every(index => Boolean(sample.landmarks[index])
+    && (sample.landmarks[index].visibility ?? 0) >= MIN_LANDMARK_VISIBILITY)
+}
+
+function rollDownSampleConfidence(sample: AssessmentPoseSample): number {
+  const torso = average([11, 12, 23, 24].map(index => sample.landmarks[index]?.visibility ?? 0))
+  const leftChain = average([15, 23, 27].map(index => sample.landmarks[index]?.visibility ?? 0))
+  const rightChain = average([16, 24, 28].map(index => sample.landmarks[index]?.visibility ?? 0))
+  return Math.min(sample.bodyConfidence, average([torso, Math.max(leftChain, rightChain)]))
+}
+
 function lowConfidence(
   samples: AssessmentPoseSample[],
   required: number[],
@@ -79,19 +92,36 @@ function hasCoverage(sample: AssessmentPoseSample, required: number[]): boolean 
       && (sample.landmarks[index].visibility ?? 0) >= MIN_LANDMARK_VISIBILITY)
 }
 
-function hasMovementCoverage(movement: BodyMirrorMovement, sample: AssessmentPoseSample): boolean {
+export function hasMovementCoverage(movement: BodyMirrorMovement, sample: AssessmentPoseSample): boolean {
   if (sample.bodyConfidence < 0.65) return false
+  if (movement === 'standing_roll_down') {
+    return visible(sample, [11, 12, 23, 24])
+      && (visible(sample, [15, 23, 27]) || visible(sample, [16, 24, 28]))
+  }
   if (movement !== 'side_arm_raise') return hasCoverage(sample, REQUIRED_LANDMARKS[movement])
 
-  const visible = (indices: number[]) => indices.every(index => Boolean(sample.landmarks[index])
-    && (sample.landmarks[index].visibility ?? 0) >= MIN_LANDMARK_VISIBILITY)
-  return visible([11, 12, 23, 24]) && (visible([11, 13, 15]) || visible([12, 14, 16]))
+  return visible(sample, [11, 12, 23, 24])
+    && (visible(sample, [11, 13, 15]) || visible(sample, [12, 14, 16]))
 }
 
 function movementConfidence(movement: BodyMirrorMovement, sample: AssessmentPoseSample): number {
-  return movement === 'side_arm_raise'
-    ? armRaiseSampleConfidence(sample)
-    : sampleConfidence(sample, REQUIRED_LANDMARKS[movement])
+  if (movement === 'side_arm_raise') return armRaiseSampleConfidence(sample)
+  if (movement === 'standing_roll_down') return rollDownSampleConfidence(sample)
+  return sampleConfidence(sample, REQUIRED_LANDMARKS[movement])
+}
+
+function rollDownWristToHip(sample: AssessmentPoseSample): number {
+  const landmarks = sample.landmarks
+  const leftVisibility = average([15, 23, 27].map(index => landmarks[index]?.visibility ?? 0))
+  const rightVisibility = average([16, 24, 28].map(index => landmarks[index]?.visibility ?? 0))
+  const [wristIndex, hipIndex] = leftVisibility >= rightVisibility ? [15, 23] : [16, 24]
+  return landmarks[wristIndex].y - landmarks[hipIndex].y
+}
+
+export function isNeutralRollDownBaseline(sample: AssessmentPoseSample): boolean {
+  if (!hasMovementCoverage('standing_roll_down', sample)) return false
+  const scale = torsoScale(sample.landmarks)
+  return rollDownWristToHip(sample) <= scale * 0.45
 }
 
 function observation(
@@ -133,15 +163,17 @@ function deriveArmRaise(samples: AssessmentPoseSample[], confidence: number): Mo
 }
 
 function deriveRollDown(samples: AssessmentPoseSample[], confidence: number): MovementDerivation {
-  const first = samples[0].landmarks
+  const baselineSamples = samples.filter(sample => sample.phase === 'baseline' && isNeutralRollDownBaseline(sample))
+  if (baselineSamples.length < MIN_BASELINE_SAMPLES) {
+    return lowConfidence(samples, REQUIRED_LANDMARKS.standing_roll_down, 'baseline_missing')
+  }
+  const movementSamples = samples.filter(sample => sample.phase !== 'baseline')
+  const first = baselineSamples[0].landmarks
   const scale = torsoScale(first)
-  const baselineWristToHip = midpoint(first[15], first[16]).y - midpoint(first[23], first[24]).y
+  const baselineWristToHip = average(baselineSamples.map(rollDownWristToHip))
   const baselineTorsoOffset = midpoint(first[11], first[12]).x - midpoint(first[23], first[24]).x
-  const descent = Math.max(...samples.map(sample => {
-    const landmarks = sample.landmarks
-    const wristToHip = midpoint(landmarks[15], landmarks[16]).y - midpoint(landmarks[23], landmarks[24]).y
-    return (wristToHip - baselineWristToHip) / scale
-  }))
+  const descent = Math.max(...movementSamples.map(sample =>
+    (rollDownWristToHip(sample) - baselineWristToHip) / scale))
   const lateralDrift = Math.max(...samples.map(sample => {
     const landmarks = sample.landmarks
     const torsoOffset = midpoint(landmarks[11], landmarks[12]).x - midpoint(landmarks[23], landmarks[24]).x
@@ -216,13 +248,37 @@ export function evaluateMovementEvidence(
   movement: BodyMirrorMovement,
   samples: AssessmentPoseSample[],
 ): MovementEvidence {
+  if (movement === 'standing_roll_down') {
+    const baselineSamples = samples.filter(sample => sample.phase === 'baseline')
+    if (baselineSamples.length < MIN_BASELINE_SAMPLES) {
+      return {
+        ready: false, validSampleCount: 0, totalSampleCount: samples.length,
+        validSampleRatio: 0, reason: 'baseline_missing',
+      }
+    }
+    if (baselineSamples.filter(sample => hasMovementCoverage(movement, sample)).length < MIN_BASELINE_SAMPLES) {
+      return {
+        ready: false, validSampleCount: 0, totalSampleCount: samples.length,
+        validSampleRatio: 0, reason: 'landmarks',
+      }
+    }
+    if (baselineSamples.filter(isNeutralRollDownBaseline).length < MIN_BASELINE_SAMPLES) {
+      return {
+        ready: false, validSampleCount: 0, totalSampleCount: samples.length,
+        validSampleRatio: 0, reason: 'baseline_missing',
+      }
+    }
+  }
   const validSamples = samples.filter(sample => hasMovementCoverage(movement, sample))
+  const validMovementSamples = movement === 'standing_roll_down'
+    ? validSamples.filter(sample => sample.phase !== 'baseline')
+    : validSamples
   const validSampleRatio = samples.length ? validSamples.length / samples.length : 0
   let reason: AssessmentFailureReason | null = null
 
   if (samples.length < MIN_VALID_SAMPLES) reason = 'insufficient_samples'
   else if (validSampleRatio < MIN_VALID_SAMPLE_RATIO) reason = 'landmarks'
-  else if (validSamples.length < MIN_VALID_SAMPLES) reason = 'insufficient_samples'
+  else if (validMovementSamples.length < MIN_VALID_SAMPLES) reason = 'insufficient_samples'
   else {
     const derived = deriveFromValidSamples(movement, validSamples)
     if (derived.status === 'low_confidence') reason = derived.reason
