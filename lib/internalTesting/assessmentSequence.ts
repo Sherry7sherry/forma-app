@@ -7,7 +7,7 @@ export function nextAssessmentScenario(movementId: string): string | null {
   if (!next) return null
   return serializeTestScenario({
     movementId: next.id,
-    phase: 'setup',
+    phase: 'full-run',
     scenarioId: next.scenarios[0].id,
     repeats: 1,
   }).toString()

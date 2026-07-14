@@ -1,9 +1,111 @@
 'use client'
+
 import dynamic from 'next/dynamic'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+
+import { ExerciseMissionPanel } from './ExerciseMissionPanel'
 import { InternalTestOverlay } from './InternalTestOverlay'
-import type { AssessmentTestableMovement } from '@/lib/internalTesting/types'
 import { useDirectedAttempt } from './useDirectedAttempt'
+import type { PoseResult } from '@/components/camera/PoseCamera'
+import {
+  poseSnapshotFromResult,
+  type ExerciseMissionCountEvidence,
+  type ExerciseMissionPhase,
+  type ExerciseMissionPoseSnapshot,
+  type ExerciseMissionQuickAction,
+} from '@/lib/internalTesting/exerciseMission'
 import { nextAssessmentScenario } from '@/lib/internalTesting/assessmentSequence'
-const PoseCamera=dynamic(()=>import('@/components/camera/PoseCamera'),{ssr:false})
-export function DirectedAssessmentRunner({movement}:{movement:AssessmentTestableMovement}){const router=useRouter();const{notice,recordIssue,recordPoseDiagnostics,forceContinue}=useDirectedAttempt(movement,'capture');async function continueToNextMovement(){await forceContinue();const scenario=nextAssessmentScenario(movement.id);router.push(scenario?`/internal/test-lab/run?${scenario}`:'/internal/test-lab')}return <div className="min-h-dvh bg-charcoal"><PoseCamera exerciseName={movement.exerciseName} formScoreSupported={false} fill overlayMode="minimal" posePrecision="assessment" onPoseResult={recordPoseDiagnostics}/><InternalTestOverlay movement={movement.displayName} phase="capture" notice={notice} onRecord={recordIssue} onRetry={()=>location.reload()} onForceContinue={continueToNextMovement} onEnd={()=>history.back()}/></div>}
+import type { TestScenario } from '@/lib/internalTesting/scenarios'
+import type { AssessmentTestableMovement } from '@/lib/internalTesting/types'
+
+const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
+
+function initialAssessmentPhase(scenario: TestScenario): ExerciseMissionPhase {
+  return scenario.phase === 'full-run' || scenario.phase === 'setup' ? 'calibrating' : scenario.phase
+}
+
+export function DirectedAssessmentRunner({
+  movement,
+  scenario,
+}: {
+  movement: AssessmentTestableMovement
+  scenario: TestScenario
+}) {
+  const router = useRouter()
+  const isFullRun = scenario.phase === 'full-run' || scenario.phase === 'setup'
+  const [currentPhase, setCurrentPhase] = useState<ExerciseMissionPhase>(() => initialAssessmentPhase(scenario))
+  const [pose, setPose] = useState<ExerciseMissionPoseSnapshot | null>(null)
+  const attemptPhase = scenario.phase === 'full-run' ? 'full-run' : currentPhase
+
+  useEffect(() => {
+    setCurrentPhase(initialAssessmentPhase(scenario))
+    setPose(null)
+  }, [movement.id, scenario])
+
+  const {
+    notice,
+    recordIssue,
+    recordPoseDiagnostics,
+    recordQuickAction,
+    recordCountObservation,
+    forceContinue,
+  } = useDirectedAttempt(movement, attemptPhase)
+
+  const nextAssessmentUrl = useCallback(() => {
+    const next = nextAssessmentScenario(movement.id)
+    return next ? `/internal/test-lab/run?${next}` : '/internal/test-lab'
+  }, [movement.id])
+
+  const advanceFullRun = useCallback(() => {
+    if (isFullRun && currentPhase !== 'capture') setCurrentPhase('capture')
+  }, [currentPhase, isFullRun])
+
+  const handleQuickAction = useCallback(async (
+    action: ExerciseMissionQuickAction,
+    evidence: ExerciseMissionCountEvidence = {},
+  ) => {
+    await recordQuickAction(action, currentPhase, evidence)
+    if (action === 'calibration-pass' || action === 'calibration-ready') advanceFullRun()
+  }, [advanceFullRun, currentPhase, recordQuickAction])
+
+  const continueToNextMovement = useCallback(async () => {
+    await forceContinue(currentPhase)
+    router.push(nextAssessmentUrl())
+  }, [currentPhase, forceContinue, nextAssessmentUrl, router])
+
+  const handlePoseResult = useCallback((result: PoseResult) => {
+    setPose(poseSnapshotFromResult(result))
+    recordPoseDiagnostics(result, currentPhase)
+  }, [currentPhase, recordPoseDiagnostics])
+
+  return (
+    <div className="min-h-dvh bg-charcoal">
+      <PoseCamera
+        exerciseName={movement.exerciseName}
+        formScoreSupported={false}
+        fill
+        overlayMode={currentPhase === 'calibrating' ? 'calibration' : 'minimal'}
+        posePrecision="assessment"
+        onPoseResult={handlePoseResult}
+      />
+      <ExerciseMissionPanel
+        movement={movement}
+        scenario={scenario}
+        currentPhase={currentPhase}
+        pose={pose}
+        onQuickAction={handleQuickAction}
+        onCountObserved={(count, evidence) => recordCountObservation(count, currentPhase, evidence)}
+      />
+      <InternalTestOverlay
+        movement={movement.displayName}
+        phase={currentPhase}
+        notice={notice}
+        onRecord={recordIssue}
+        onRetry={() => location.reload()}
+        onForceContinue={continueToNextMovement}
+        onEnd={() => history.back()}
+      />
+    </div>
+  )
+}

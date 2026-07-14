@@ -4,12 +4,13 @@ import { useMemo, useState } from 'react'
 
 import {
   deriveExerciseMissionState,
+  type ExerciseMissionCountEvidence,
   type ExerciseMissionPhase,
   type ExerciseMissionPoseSnapshot,
   type ExerciseMissionQuickAction,
 } from '@/lib/internalTesting/exerciseMission'
 import type { TestScenario } from '@/lib/internalTesting/scenarios'
-import type { ExerciseTestableMovement } from '@/lib/internalTesting/types'
+import type { TestableMovement } from '@/lib/internalTesting/types'
 import type { ProductionRepCounterView } from '@/lib/repCounting/useProductionRepCounter'
 
 const QUICK_ACTIONS: { action: ExerciseMissionQuickAction; label: string }[] = [
@@ -33,16 +34,18 @@ export function ExerciseMissionPanel({
   currentPhase,
   pose,
   counter,
+  countEvidence,
   onQuickAction,
   onCountObserved,
 }: {
-  movement: ExerciseTestableMovement
+  movement: TestableMovement
   scenario: TestScenario
   currentPhase: ExerciseMissionPhase
   pose: ExerciseMissionPoseSnapshot | null
   counter?: ProductionRepCounterView
-  onQuickAction(action: ExerciseMissionQuickAction): Promise<void> | void
-  onCountObserved(count: number): Promise<void> | void
+  countEvidence?: ExerciseMissionCountEvidence
+  onQuickAction(action: ExerciseMissionQuickAction, evidence?: ExerciseMissionCountEvidence): Promise<void> | void
+  onCountObserved(count: number, evidence?: ExerciseMissionCountEvidence): Promise<void> | void
 }) {
   const [observedCount, setObservedCount] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
@@ -61,10 +64,34 @@ export function ExerciseMissionPanel({
     }
   }
 
+  function countDiagnosticEvidence(): ExerciseMissionCountEvidence {
+    return {
+      ...countEvidence,
+      aiRepCount: counter?.repCount ?? null,
+      targetReps: scenario.repeats,
+      aiRepPhase: counter?.phase ?? null,
+      aiStatus: counter?.status.chip ?? null,
+      aiStatusMessage: counter?.status.message ?? null,
+      cycleStage: counter?.cycleStage ?? null,
+      movementStale: counter?.movementStale ?? null,
+      qualityCue: counter?.qualityCue ?? null,
+      visibleLandmarks: counter?.diagnostics.visible ?? pose?.visibleLandmarks ?? null,
+      requiredLandmarks: counter?.diagnostics.required ?? null,
+      trackedLandmarks: pose?.trackedLandmarks ?? null,
+      bodyConfidence: counter?.diagnostics.confidence ?? pose?.bodyConfidence ?? null,
+      delta: counter?.diagnostics.delta ?? null,
+    }
+  }
+
   function logCount() {
     const nextCount = observedCount + 1
     setObservedCount(nextCount)
-    void run(() => onCountObserved(nextCount), `Observed count ${nextCount} logged.`)
+    void run(() => onCountObserved(nextCount, countDiagnosticEvidence()), `Observed count ${nextCount} logged.`)
+  }
+
+  function checklistLabel(item: { key: string; label: string }) {
+    if (item.key === 'count' && counter) return `${item.label} · AI ${counter.repCount}/${scenario.repeats}`
+    return item.label
   }
 
   return (
@@ -94,7 +121,7 @@ export function ExerciseMissionPanel({
         <div className="grid gap-2">
           {mission.checklist.map(item => (
             <div key={item.key} className={`rounded-xl border px-3 py-2 text-xs ${stateClass(item.state)}`}>
-              {item.label}
+              {checklistLabel(item)}
             </div>
           ))}
         </div>
@@ -134,25 +161,50 @@ export function ExerciseMissionPanel({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          {currentPhase === 'calibrating' && (
+        <div className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
-              disabled={!mission.canLogSuccess}
-              onClick={() => void run(() => onQuickAction('calibration-ready'), 'Calibration pass logged.')}
-              className="rounded-xl bg-emerald-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={!mission.canLogCameraSuccess}
+              onClick={() => void run(() => onQuickAction('camera-pass'), 'Camera pass logged.')}
+              className="rounded-xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              Log camera passed
+            </button>
+            <button
+              type="button"
+              disabled={!mission.canLogCalibrationSuccess}
+              onClick={() => void run(() => onQuickAction('calibration-pass'), 'Calibration pass logged.')}
+              className="rounded-xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
             >
               Log calibration passed
             </button>
-          )}
-          {currentPhase === 'exercising' && (
             <button
               type="button"
-              onClick={logCount}
-              className="rounded-xl bg-sage-light px-3 py-2 text-sm font-semibold text-slate-950"
+              disabled={!mission.canLogCountSuccess}
+              onClick={() => void run(() => onQuickAction('count-pass', countDiagnosticEvidence()), 'Count pass logged.')}
+              className="rounded-xl bg-sage-light px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
             >
-              + Count observed
+              Log count passed
             </button>
+          </div>
+          {(currentPhase === 'exercising' || currentPhase === 'capture') && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={logCount}
+                className="rounded-xl bg-white/[0.09] px-3 py-2 text-xs font-semibold text-white/80"
+              >
+                + Count observed
+              </button>
+              <button
+                type="button"
+                onClick={() => void run(() => onQuickAction('ai-count-zero', countDiagnosticEvidence()), 'AI count zero evidence logged.')}
+                className="rounded-xl bg-rose-300 px-3 py-2 text-xs font-semibold text-slate-950"
+              >
+                AI count stuck at 0
+              </button>
+            </div>
           )}
         </div>
 
@@ -161,7 +213,12 @@ export function ExerciseMissionPanel({
             <button
               key={item.action}
               type="button"
-              onClick={() => void run(() => onQuickAction(item.action), `${item.label} logged.`)}
+              onClick={() => void run(
+                () => onQuickAction(item.action, item.action.startsWith('count') || item.action === 'false-count' || item.action === 'tracking-flicker'
+                  ? countDiagnosticEvidence()
+                  : undefined),
+                `${item.label} logged.`,
+              )}
               className="rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1.5 text-xs text-white/75 active:bg-white/[0.15]"
             >
               {item.label}
