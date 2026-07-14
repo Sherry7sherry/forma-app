@@ -6,6 +6,7 @@ import { captureEnvironment } from '@/lib/internalTesting/clientSession'
 import type { TestableMovement } from '@/lib/internalTesting/types'
 import type { PoseResult } from '@/components/camera/PoseCamera'
 import { missionEventForQuickAction, type ExerciseMissionQuickAction } from '@/lib/internalTesting/exerciseMission'
+import type { ProductionRepCounterEvent } from '@/lib/repCounting/productionRepCounter'
 
 const DIAGNOSTIC_SAMPLE_INTERVAL_MS = 500
 
@@ -75,6 +76,23 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
     setNotice(`Tester-observed count logged (${observedCount}). Production data was not changed.`)
   }, [append, movement, phase])
 
+  const recordAiCountObservation = useCallback(async (event: ProductionRepCounterEvent) => {
+    if (event.type !== 'count') return
+    await append({
+      eventType: 'count',
+      elapsedMs: 0,
+      data: {
+        action: 'ai-counted',
+        movementId: movement.id,
+        phase,
+        ...event.data,
+        productionEvidence: false,
+        synthetic: true,
+      },
+    })
+    setNotice(`AI count signal logged (${event.data.repCount ?? 'unknown'}). Production data was not changed.`)
+  }, [append, movement.id, phase])
+
   const recordPoseDiagnostics = useCallback((result: PoseResult) => {
     if (!attemptId) return
     const now = Date.now()
@@ -115,5 +133,5 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
     setNotice('Synthetic continuation recorded. This did not update production data.')
   }, [append, attemptId])
 
-  return { notice, recordIssue, recordPoseDiagnostics, recordQuickAction, recordCountObservation, forceContinue }
+  return { notice, recordIssue, recordPoseDiagnostics, recordQuickAction, recordCountObservation, recordAiCountObservation, forceContinue }
 }
