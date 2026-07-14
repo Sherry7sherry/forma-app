@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { captureEnvironment } from '@/lib/internalTesting/clientSession'
 import type { TestableMovement } from '@/lib/internalTesting/types'
 import type { PoseResult } from '@/components/camera/PoseCamera'
+import { missionEventForQuickAction, type ExerciseMissionQuickAction } from '@/lib/internalTesting/exerciseMission'
 
 const DIAGNOSTIC_SAMPLE_INTERVAL_MS = 500
 
@@ -64,6 +65,16 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
     setNotice('Problem logged. You can retry or log and continue.')
   }, [append])
 
+  const recordQuickAction = useCallback(async (action: ExerciseMissionQuickAction) => {
+    await append(missionEventForQuickAction(action, movement, phase))
+    setNotice('Quick internal annotation logged. Production data was not changed.')
+  }, [append, movement, phase])
+
+  const recordCountObservation = useCallback(async (observedCount: number) => {
+    await append(missionEventForQuickAction('count-observed', movement, phase, observedCount))
+    setNotice(`Tester-observed count logged (${observedCount}). Production data was not changed.`)
+  }, [append, movement, phase])
+
   const recordPoseDiagnostics = useCallback((result: PoseResult) => {
     if (!attemptId) return
     const now = Date.now()
@@ -104,5 +115,5 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
     setNotice('Synthetic continuation recorded. This did not update production data.')
   }, [append, attemptId])
 
-  return { notice, recordIssue, recordPoseDiagnostics, forceContinue }
+  return { notice, recordIssue, recordPoseDiagnostics, recordQuickAction, recordCountObservation, forceContinue }
 }

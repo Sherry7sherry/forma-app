@@ -1,0 +1,125 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+
+import {
+  deriveExerciseMissionState,
+  missionEventForQuickAction,
+  type ExerciseMissionPoseSnapshot,
+} from './exerciseMission.js'
+import type { ExerciseTestableMovement } from './types.js'
+
+const automaticMovement: ExerciseTestableMovement = {
+  id: 'exercise:glute-bridge',
+  kind: 'exercise',
+  displayName: 'Glute Bridge',
+  exerciseName: 'Glute Bridge',
+  postureFamily: 'supine',
+  trackingMode: 'automatic',
+  orientation: 'landscape',
+  capabilities: ['calibration', 'repetition-counting', 'form-feedback'],
+  scenarios: [{ id: 'automatic-count', label: 'Automatic count', assertionType: 'automatic-count' }],
+}
+
+const manualMovement: ExerciseTestableMovement = {
+  ...automaticMovement,
+  id: 'exercise:pelvic-floor-activation',
+  displayName: 'Pelvic Floor Activation',
+  exerciseName: 'Pelvic Floor Activation',
+  trackingMode: 'manual',
+  capabilities: ['calibration', 'form-feedback'],
+  scenarios: [{ id: 'manual-count', label: 'Manual count', assertionType: 'manual-count' }],
+}
+
+function pose(overrides: Partial<ExerciseMissionPoseSnapshot> = {}): ExerciseMissionPoseSnapshot {
+  return {
+    framingStatus: 'full-body',
+    bodyConfidence: 0.86,
+    visibleLandmarks: 26,
+    trackedLandmarks: 20,
+    detectionFps: 10.4,
+    deviceClass: 'phone',
+    orientation: 'landscape',
+    feedbackTypes: ['good'],
+    ...overrides,
+  }
+}
+
+describe('exercise mission state', () => {
+  it('turns calibrating diagnostics into a clear ready or stuck state', () => {
+    const waiting = deriveExerciseMissionState({
+      movement: automaticMovement,
+      phase: 'calibrating',
+      repeats: 3,
+      pose: pose({ framingStatus: 'partial', bodyConfidence: 0.35, visibleLandmarks: 9, trackedLandmarks: 4 }),
+    })
+    assert.equal(waiting.status, 'waiting')
+    assert.equal(waiting.primaryMetric.label, 'Calibration')
+    assert.match(waiting.primaryMetric.value, /Needs body/)
+    assert.equal(waiting.canLogSuccess, false)
+    assert.ok(waiting.checklist.some((item: { key: string; state: string }) => item.key === 'body-visible' && item.state === 'active'))
+
+    const ready = deriveExerciseMissionState({
+      movement: automaticMovement,
+      phase: 'calibrating',
+      repeats: 3,
+      pose: pose(),
+    })
+    assert.equal(ready.status, 'ready')
+    assert.equal(ready.primaryMetric.value, 'Ready')
+    assert.equal(ready.canLogSuccess, true)
+    assert.ok(ready.checklist.some((item: { key: string; state: string }) => item.key === 'body-visible' && item.state === 'done'))
+  })
+
+  it('accepts production tracking profile coverage when generic full-body framing is conservative', () => {
+    const ready = deriveExerciseMissionState({
+      movement: automaticMovement,
+      phase: 'calibrating',
+      repeats: 3,
+      pose: pose({ framingStatus: 'partial', bodyConfidence: 0.72, visibleLandmarks: 7, trackedLandmarks: 9 }),
+    })
+
+    assert.equal(ready.status, 'ready')
+    assert.equal(ready.canLogSuccess, true)
+  })
+
+  it('explains exercise count expectations without creating a Test Lab-only movement engine', () => {
+    const automatic = deriveExerciseMissionState({
+      movement: automaticMovement,
+      phase: 'exercising',
+      repeats: 4,
+      pose: pose(),
+    })
+    assert.equal(automatic.status, 'observing')
+    assert.equal(automatic.countMode, 'automatic')
+    assert.equal(automatic.primaryMetric.value, '4 reps')
+    assert.match(automatic.guidance, /production auto-count/i)
+    assert.match(automatic.guardrail, /No Test Lab-only counting/)
+
+    const manual = deriveExerciseMissionState({
+      movement: manualMovement,
+      phase: 'exercising',
+      repeats: 2,
+      pose: pose(),
+    })
+    assert.equal(manual.countMode, 'manual')
+    assert.match(manual.guidance, /tester-observed count/i)
+  })
+
+  it('records quick annotations as isolated internal events', () => {
+    const count = missionEventForQuickAction('count-observed', automaticMovement, 'exercising', 2)
+    assert.equal(count.eventType, 'count')
+    assert.deepEqual(count.data, {
+      action: 'count-observed',
+      movementId: 'exercise:glute-bridge',
+      phase: 'exercising',
+      observedCount: 2,
+      productionEvidence: false,
+      synthetic: true,
+    })
+
+    const blocker = missionEventForQuickAction('calibration-stuck', automaticMovement, 'calibrating')
+    assert.equal(blocker.eventType, 'blocker')
+    assert.equal(blocker.data.productionEvidence, false)
+    assert.equal(blocker.data.synthetic, true)
+  })
+})

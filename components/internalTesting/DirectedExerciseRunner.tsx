@@ -1,7 +1,24 @@
 'use client'
 import dynamic from 'next/dynamic'
+import { useCallback, useMemo, useState } from 'react'
 import { InternalTestOverlay } from './InternalTestOverlay'
+import { ExerciseMissionPanel } from './ExerciseMissionPanel'
 import type { ExerciseTestableMovement } from '@/lib/internalTesting/types'
+import type { TestScenario } from '@/lib/internalTesting/scenarios'
+import { FLOOR_EXERCISE_NAMES, getExerciseTrackingProfile } from '@/lib/exerciseTracking'
+import { poseSnapshotFromResult, type ExerciseMissionPoseSnapshot } from '@/lib/internalTesting/exerciseMission'
+import type { PoseResult } from '@/components/camera/PoseCamera'
 import { useDirectedAttempt } from './useDirectedAttempt'
 const PoseCamera=dynamic(()=>import('@/components/camera/PoseCamera'),{ssr:false})
-export function DirectedExerciseRunner({movement}:{movement:ExerciseTestableMovement}){const{notice,recordIssue,recordPoseDiagnostics,forceContinue}=useDirectedAttempt(movement,'calibrating');return <div className="min-h-dvh bg-charcoal"><PoseCamera exerciseName={movement.exerciseName} fill overlayMode="minimal" onPoseResult={recordPoseDiagnostics}/><InternalTestOverlay movement={movement.displayName} phase="calibrating" notice={notice} onRecord={recordIssue} onRetry={()=>location.reload()} onForceContinue={forceContinue} onEnd={()=>history.back()}/></div>}
+export function DirectedExerciseRunner({movement,scenario}:{movement:ExerciseTestableMovement;scenario:TestScenario}){
+  const{notice,recordIssue,recordPoseDiagnostics,recordQuickAction,recordCountObservation,forceContinue}=useDirectedAttempt(movement,scenario.phase)
+  const[pose,setPose]=useState<ExerciseMissionPoseSnapshot|null>(null)
+  const isFloorExercise=FLOOR_EXERCISE_NAMES.has(movement.exerciseName)
+  const trackingProfile=useMemo(()=>getExerciseTrackingProfile(movement.exerciseName,isFloorExercise),[movement.exerciseName,isFloorExercise])
+  const handlePoseResult=useCallback((result:PoseResult)=>{setPose(poseSnapshotFromResult(result));recordPoseDiagnostics(result)},[recordPoseDiagnostics])
+  return <div className="min-h-dvh bg-charcoal">
+    <PoseCamera exerciseName={movement.exerciseName} isFloorExercise={isFloorExercise} formScoreSupported={!isFloorExercise} cameraOrientation={trackingProfile.cameraOrientation} trackingLandmarks={trackingProfile.landmarks} trackingMinVisibility={trackingProfile.minVisibility} fill overlayMode={scenario.phase==='calibrating'?'calibration':'minimal'} onPoseResult={handlePoseResult}/>
+    <ExerciseMissionPanel movement={movement} scenario={scenario} pose={pose} onQuickAction={recordQuickAction} onCountObserved={recordCountObservation}/>
+    <InternalTestOverlay movement={movement.displayName} phase={scenario.phase} notice={notice} onRecord={recordIssue} onRetry={()=>location.reload()} onForceContinue={forceContinue} onEnd={()=>history.back()}/>
+  </div>
+}
