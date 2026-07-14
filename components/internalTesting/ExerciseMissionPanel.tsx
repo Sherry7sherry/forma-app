@@ -234,7 +234,7 @@ export function ExerciseMissionPanel({
     <>
       <section
         aria-label="Mobile mission summary"
-        className="pointer-events-auto fixed inset-x-3 bottom-3 z-[90] overflow-hidden rounded-[1.2rem] border border-white/[0.15] bg-slate-950/[0.9] text-white shadow-2xl backdrop-blur-xl md:hidden"
+        className="pointer-events-auto fixed inset-x-3 bottom-3 z-[90] overflow-hidden rounded-[1.2rem] border border-white/[0.15] bg-slate-950/[0.9] text-white shadow-2xl backdrop-blur-xl lg:hidden"
       >
         <div className="p-3">
           <button
@@ -275,7 +275,7 @@ export function ExerciseMissionPanel({
         )}
       </section>
 
-      <section className="pointer-events-auto fixed left-3 top-3 z-[90] hidden w-[min(28rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.4rem] border border-white/[0.15] bg-slate-950/[0.88] text-white shadow-2xl backdrop-blur-xl md:block">
+      <section className="pointer-events-auto fixed left-3 top-3 z-[90] hidden w-[min(28rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.4rem] border border-white/[0.15] bg-slate-950/[0.88] text-white shadow-2xl backdrop-blur-xl lg:block">
         <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(122,158,142,0.45),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.02))] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>

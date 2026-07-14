@@ -132,20 +132,23 @@ describe('directed runner controls', () => {
     assert.match(exerciseRunner, /returnThreshold/)
   })
 
-  it('keeps the test lab mission board compact on phone screens', () => {
+  it('keeps the test lab mission board compact on phones and portrait tablets', () => {
     const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
     const overlay = readFileSync('components/internalTesting/InternalTestOverlay.tsx', 'utf8')
 
     assert.match(panel, /Mobile mission summary/)
-    assert.match(panel, /md:hidden/)
-    assert.match(panel, /md:block/)
+    assert.match(panel, /lg:hidden/)
+    assert.match(panel, /lg:block/)
+    assert.doesNotMatch(panel, /md:hidden|md:block/)
     assert.match(panel, /bottom-3/)
     assert.match(panel, /max-h-\[42dvh\]/)
     assert.match(panel, /Show controls/)
     assert.match(panel, /Hide controls/)
     assert.match(overlay, /useState\(false\)/)
     assert.match(overlay, /top-3/)
-    assert.match(overlay, /sm:bottom-3/)
+    assert.match(overlay, /lg:bottom-3/)
+    assert.match(overlay, /lg:top-auto/)
+    assert.doesNotMatch(overlay, /sm:bottom-3|sm:top-auto/)
   })
 
   it('shares the production rep counter with the directed exercise lab', () => {
