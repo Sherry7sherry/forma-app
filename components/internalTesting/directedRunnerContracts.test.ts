@@ -59,17 +59,33 @@ describe('directed runner controls', () => {
     assert.match(source, /await forceContinue\(\)/)
   })
 
-  it('passes the selected directed scenario phase into the exercise runner', () => {
+  it('passes the parsed test scenario into a runner-owned current phase', () => {
     const page = readFileSync('app/internal/test-lab/run/page.tsx', 'utf8')
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
 
     assert.match(page, /const scenario\s*=\s*parseTestScenario/)
     assert.match(page, /<DirectedExerciseRunner movement=\{movement\} scenario=\{parsedScenario\}/)
     assert.match(runner, /scenario:\s*TestScenario/)
-    assert.match(runner, /useDirectedAttempt\(movement,\s*scenario\.phase\)/)
-    assert.match(runner, /phase=\{scenario\.phase\}/)
+    assert.match(runner, /useDirectedAttempt\(movement,\s*currentPhase\)/)
+    assert.match(runner, /phase=\{currentPhase\}/)
     assert.doesNotMatch(runner, /useDirectedAttempt\(movement,\s*'calibrating'\)/)
     assert.doesNotMatch(runner, /phase="calibrating"/)
+  })
+
+  it('starts exercise tests as a full run and keeps phase jumps behind advanced controls', () => {
+    const form = readFileSync('components/internalTesting/TestLabForm.tsx', 'utf8')
+    const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(form, /useState<TestScenarioPhase>\('full-run'\)/)
+    assert.match(form, /Start full test/)
+    assert.match(form, /Advanced jump/)
+    assert.doesNotMatch(form, />Phase</)
+    assert.match(runner, /scenario\.phase === 'full-run'/)
+    assert.match(runner, /setCurrentPhase\('exercising'\)/)
+    assert.match(runner, /phase=\{currentPhase\}/)
+    assert.match(panel, /currentPhase/)
+    assert.doesNotMatch(panel, /scenario\.phase === 'exercising'/)
   })
 
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
@@ -79,13 +95,13 @@ describe('directed runner controls', () => {
     const mission = readFileSync('lib/internalTesting/exerciseMission.ts', 'utf8')
 
     assert.match(runner, /ExerciseMissionPanel/)
-    assert.match(runner, /onQuickAction=\{recordQuickAction\}/)
+    assert.match(runner, /onQuickAction=\{handleQuickAction\}/)
     assert.match(runner, /onCountObserved=\{recordCountObservation\}/)
     assert.match(hook, /recordQuickAction/)
     assert.match(hook, /recordCountObservation/)
     assert.match(hook, /missionEventForQuickAction\('count-observed'/)
     assert.match(mission, /productionEvidence:\s*false/)
-    assert.match(panel, /scenario\.phase === 'exercising' &&/)
+    assert.match(panel, /currentPhase === 'exercising' &&/)
   })
 
   it('shares the production rep counter with the directed exercise lab', () => {
@@ -116,7 +132,7 @@ describe('directed runner controls', () => {
       assert.match(source, /onRecord=\{recordIssue\}/)
       assert.match(source, name === 'DirectedAssessmentRunner.tsx'
         ? /onForceContinue=\{continueToNextMovement\}/
-        : /onForceContinue=\{forceContinue\}/)
+        : /onForceContinue=\{continueCurrentPhase\}/)
       assert.doesNotMatch(source, /onRecord=\{\(\)=>\{\}\}/)
       assert.doesNotMatch(source, /onForceContinue=\{\(\)=>\{\}\}/)
     })

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 
 import {
   deriveExerciseMissionState,
+  type ExerciseMissionPhase,
   type ExerciseMissionPoseSnapshot,
   type ExerciseMissionQuickAction,
 } from '@/lib/internalTesting/exerciseMission'
@@ -29,6 +30,7 @@ function stateClass(state: string) {
 export function ExerciseMissionPanel({
   movement,
   scenario,
+  currentPhase,
   pose,
   counter,
   onQuickAction,
@@ -36,6 +38,7 @@ export function ExerciseMissionPanel({
 }: {
   movement: ExerciseTestableMovement
   scenario: TestScenario
+  currentPhase: ExerciseMissionPhase
   pose: ExerciseMissionPoseSnapshot | null
   counter?: ProductionRepCounterView
   onQuickAction(action: ExerciseMissionQuickAction): Promise<void> | void
@@ -44,8 +47,8 @@ export function ExerciseMissionPanel({
   const [observedCount, setObservedCount] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const mission = useMemo(
-    () => deriveExerciseMissionState({ movement, phase: scenario.phase, repeats: scenario.repeats, pose }),
-    [movement, pose, scenario.phase, scenario.repeats],
+    () => deriveExerciseMissionState({ movement, phase: currentPhase, repeats: scenario.repeats, pose }),
+    [currentPhase, movement, pose, scenario.repeats],
   )
 
   async function run(action: () => Promise<void> | void, message: string) {
@@ -73,7 +76,7 @@ export function ExerciseMissionPanel({
             <h2 className="mt-1 font-serif text-xl leading-tight">{movement.displayName}</h2>
           </div>
           <div className="rounded-full border border-white/[0.15] bg-black/25 px-3 py-1 text-[11px] uppercase tracking-wider text-white/70">
-            {scenario.phase}
+            {currentPhase}
           </div>
         </div>
         <p className="mt-3 text-sm text-white/[0.78]">{mission.headline}</p>
@@ -105,7 +108,7 @@ export function ExerciseMissionPanel({
           </div>
         )}
 
-        {scenario.phase === 'exercising' && counter && (
+        {currentPhase === 'exercising' && counter && (
           <div className="rounded-2xl border border-sage-light/25 bg-sage-light/[0.08] p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -132,7 +135,7 @@ export function ExerciseMissionPanel({
         )}
 
         <div className="grid grid-cols-2 gap-2">
-          {scenario.phase === 'calibrating' && (
+          {currentPhase === 'calibrating' && (
             <button
               type="button"
               disabled={!mission.canLogSuccess}
@@ -142,7 +145,7 @@ export function ExerciseMissionPanel({
               Log calibration passed
             </button>
           )}
-          {scenario.phase === 'exercising' && (
+          {currentPhase === 'exercising' && (
             <button
               type="button"
               onClick={logCount}

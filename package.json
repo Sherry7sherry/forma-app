@@ -7,7 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
-    "test": "tsc --project tsconfig.test.json && node --test .test-build/*.test.js .test-build/*/*.test.js .test-build/components/i18n/*.test.js .test-build/components/internalTesting/*.test.js .test-build/lib/i18n/*.test.js .test-build/lib/internalTesting/exerciseMission.test.js .test-build/lib/repCounting/*.test.js .test-build/lib/coach/*.test.js .test-build/lib/coach/providers/*.test.js"
+    "test": "tsc --project tsconfig.test.json && node --test .test-build/*.test.js .test-build/*/*.test.js .test-build/components/i18n/*.test.js .test-build/components/internalTesting/*.test.js .test-build/lib/i18n/*.test.js .test-build/lib/internalTesting/scenarios.test.js .test-build/lib/internalTesting/exerciseMission.test.js .test-build/lib/repCounting/*.test.js .test-build/lib/coach/*.test.js .test-build/lib/coach/providers/*.test.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.1",
