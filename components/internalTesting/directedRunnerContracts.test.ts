@@ -132,6 +132,22 @@ describe('directed runner controls', () => {
     assert.match(exerciseRunner, /returnThreshold/)
   })
 
+  it('keeps the test lab mission board compact on phone screens', () => {
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+    const overlay = readFileSync('components/internalTesting/InternalTestOverlay.tsx', 'utf8')
+
+    assert.match(panel, /Mobile mission summary/)
+    assert.match(panel, /md:hidden/)
+    assert.match(panel, /md:block/)
+    assert.match(panel, /bottom-3/)
+    assert.match(panel, /max-h-\[42dvh\]/)
+    assert.match(panel, /Show controls/)
+    assert.match(panel, /Hide controls/)
+    assert.match(overlay, /useState\(false\)/)
+    assert.match(overlay, /top-3/)
+    assert.match(overlay, /sm:bottom-3/)
+  })
+
   it('shares the production rep counter with the directed exercise lab', () => {
     const session = readFileSync('app/session/[id]/SessionPlayer.tsx', 'utf8')
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
