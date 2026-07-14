@@ -206,7 +206,14 @@ export function deriveExerciseMissionState({ movement, phase, repeats, pose }: M
 
 function outcomeFor(action: ExerciseMissionQuickAction) {
   if (action === 'camera-pass' || action === 'calibration-pass' || action === 'calibration-ready' || action === 'count-pass') return 'pass'
-  if (action === 'ai-count-zero' || action === 'count-missed' || action === 'false-count') return 'fail'
+  if (
+    action === 'ai-count-zero'
+    || action === 'count-missed'
+    || action === 'false-count'
+    || action === 'camera-placement'
+    || action === 'calibration-stuck'
+    || action === 'tracking-flicker'
+  ) return 'fail'
   return 'note'
 }
 

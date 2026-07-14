@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   deriveExerciseMissionState,
@@ -12,6 +12,7 @@ import {
 import type { TestScenario } from '@/lib/internalTesting/scenarios'
 import type { TestableMovement } from '@/lib/internalTesting/types'
 import type { ProductionRepCounterView } from '@/lib/repCounting/useProductionRepCounter'
+import { createVoiceCoach } from '@/lib/voiceCoach'
 
 const QUICK_ACTIONS: { action: ExerciseMissionQuickAction; label: string }[] = [
   { action: 'camera-placement', label: 'Camera placement' },
@@ -20,6 +21,33 @@ const QUICK_ACTIONS: { action: ExerciseMissionQuickAction; label: string }[] = [
   { action: 'false-count', label: 'False count' },
   { action: 'tracking-flicker', label: 'Tracking flicker' },
 ]
+
+const PASS_BUTTON_CLASS = 'rounded-xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/35 disabled:opacity-100'
+const COUNT_PASS_BUTTON_CLASS = 'rounded-xl bg-sage-light px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/35 disabled:opacity-100'
+const FAIL_BUTTON_CLASS = 'rounded-xl border border-rose-300/35 bg-rose-300/[0.16] px-3 py-2 text-xs font-semibold text-rose-50 active:bg-rose-300/[0.24] disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/35 disabled:opacity-100'
+
+interface AttemptPoseSummary {
+  sawBody: boolean
+  bestVisibleLandmarks: number
+  bestTrackedLandmarks: number
+  bestBodyConfidence: number
+  bestDetectionFps: number
+  lastDetectedAt: number | null
+}
+
+interface VoiceFeedback {
+  key: string
+  text: string
+}
+
+const EMPTY_ATTEMPT_POSE_SUMMARY: AttemptPoseSummary = {
+  sawBody: false,
+  bestVisibleLandmarks: 0,
+  bestTrackedLandmarks: 0,
+  bestBodyConfidence: 0,
+  bestDetectionFps: 0,
+  lastDetectedAt: null,
+}
 
 function stateClass(state: string) {
   if (state === 'done') return 'border-emerald-300/50 bg-emerald-300/[0.15] text-emerald-50'
@@ -50,19 +78,101 @@ export function ExerciseMissionPanel({
   const [observedCount, setObservedCount] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [mobileExpanded, setMobileExpanded] = useState(false)
+  const [attemptPoseSummary, setAttemptPoseSummary] = useState<AttemptPoseSummary>(EMPTY_ATTEMPT_POSE_SUMMARY)
+  const [lastDetectedAgeMs, setLastDetectedAgeMs] = useState<number | null>(null)
+  const voiceCoachRef = useRef(createVoiceCoach())
   const mission = useMemo(
     () => deriveExerciseMissionState({ movement, phase: currentPhase, repeats: scenario.repeats, pose }),
     [currentPhase, movement, pose, scenario.repeats],
   )
 
-  async function run(action: () => Promise<void> | void, message: string) {
+  useEffect(() => {
+    setAttemptPoseSummary(EMPTY_ATTEMPT_POSE_SUMMARY)
+    setLastDetectedAgeMs(null)
+    voiceCoachRef.current.reset()
+  }, [currentPhase, movement.id])
+
+  useEffect(() => {
+    if (!pose) return
+    const bodySeen = pose.visibleLandmarks > 0 || pose.trackedLandmarks > 0 || pose.bodyConfidence > 0.05
+    if (!bodySeen) return
+
+    const now = Date.now()
+    setLastDetectedAgeMs(0)
+    setAttemptPoseSummary(previous => ({
+      sawBody: true,
+      bestVisibleLandmarks: Math.max(previous.bestVisibleLandmarks, pose.visibleLandmarks),
+      bestTrackedLandmarks: Math.max(previous.bestTrackedLandmarks, pose.trackedLandmarks),
+      bestBodyConfidence: Math.max(previous.bestBodyConfidence, pose.bodyConfidence),
+      bestDetectionFps: Math.max(previous.bestDetectionFps, pose.detectionFps),
+      lastDetectedAt: now,
+    }))
+  }, [pose])
+
+  useEffect(() => {
+    if (!attemptPoseSummary.lastDetectedAt) return
+
+    function updateLastDetectedAge() {
+      setLastDetectedAgeMs(Math.max(0, Date.now() - (attemptPoseSummary.lastDetectedAt ?? 0)))
+    }
+
+    updateLastDetectedAge()
+    const intervalId = window.setInterval(updateLastDetectedAge, 1000)
+    return () => window.clearInterval(intervalId)
+  }, [attemptPoseSummary.lastDetectedAt])
+
+  async function run(action: () => Promise<void> | void, message: string, voice?: VoiceFeedback) {
+    if (voice) voiceCoachRef.current.unlock()
     setNotice('Saving internal annotation…')
     try {
       await action()
       setNotice(message)
+      if (voice) {
+        voiceCoachRef.current.speak({
+          key: `test-lab-${voice.key}`,
+          text: voice.text,
+          cooldownMs: 0,
+        }, true)
+      }
     } catch (error) {
       setNotice(`Could not save annotation: ${error instanceof Error ? error.message : 'unknown error'}`)
     }
+  }
+
+  function currentBodyMissing() {
+    return !pose || pose.visibleLandmarks === 0 || pose.framingStatus === 'no-body'
+  }
+
+  function attemptHadCalibrationReady() {
+    const genericFullBodyReady = attemptPoseSummary.bestBodyConfidence >= 0.55
+      && attemptPoseSummary.bestVisibleLandmarks >= 18
+    const trackingProfileReady = attemptPoseSummary.bestTrackedLandmarks > 0
+      && attemptPoseSummary.bestBodyConfidence >= 0.55
+      && attemptPoseSummary.bestVisibleLandmarks / attemptPoseSummary.bestTrackedLandmarks >= 0.7
+    return genericFullBodyReady || trackingProfileReady
+  }
+
+  function attemptLastDetectedLabel() {
+    if (lastDetectedAgeMs === null) return 'not yet'
+    const seconds = Math.max(0, Math.round(lastDetectedAgeMs / 1000))
+    if (seconds <= 1) return 'just now'
+    return `${seconds}s ago`
+  }
+
+  function attemptRecommendation() {
+    if (attemptPoseSummary.sawBody && currentBodyMissing()) {
+      return 'Recommended record: If detection appeared and then dropped only after you returned to the screen, still record the movement result as pass. Log Tracking flicker only if it dropped during the movement or capture.'
+    }
+    if (!attemptPoseSummary.sawBody) {
+      return 'Recommended record: Body not detected. Log camera failed only if the body never appeared during the attempt.'
+    }
+    if (!mission.canLogCalibrationSuccess && !attemptHadCalibrationReady()) {
+      return 'Recommended record: Camera can see you, but calibration is not stable. Log calibration failed.'
+    }
+    if (currentPhase === 'capture' || currentPhase === 'exercising') {
+      return 'Recommended record: If the movement happened clearly but AI count stayed wrong or zero, log count failed.'
+    }
+    return 'Recommended record: Log the pass or fail button for the standard you just observed.'
   }
 
   function countDiagnosticEvidence(): ExerciseMissionCountEvidence {
@@ -80,14 +190,25 @@ export function ExerciseMissionPanel({
       requiredLandmarks: counter?.diagnostics.required ?? null,
       trackedLandmarks: pose?.trackedLandmarks ?? null,
       bodyConfidence: counter?.diagnostics.confidence ?? pose?.bodyConfidence ?? null,
+      framingStatus: pose?.framingStatus ?? null,
       delta: counter?.diagnostics.delta ?? null,
+      attemptSawBody: attemptPoseSummary.sawBody,
+      attemptBestVisibleLandmarks: attemptPoseSummary.bestVisibleLandmarks,
+      attemptBestTrackedLandmarks: attemptPoseSummary.bestTrackedLandmarks,
+      attemptBestBodyConfidence: Number(attemptPoseSummary.bestBodyConfidence.toFixed(3)),
+      attemptBestDetectionFps: Number(attemptPoseSummary.bestDetectionFps.toFixed(1)),
+      attemptLastDetectedAgeMs: lastDetectedAgeMs,
     }
   }
 
   function logCount() {
     const nextCount = observedCount + 1
     setObservedCount(nextCount)
-    void run(() => onCountObserved(nextCount, countDiagnosticEvidence()), `Observed count ${nextCount} logged.`)
+    void run(
+      () => onCountObserved(nextCount, countDiagnosticEvidence()),
+      `Observed count ${nextCount} logged.`,
+      { key: `count-observed-${nextCount}`, text: `Observed count ${nextCount} recorded.` },
+    )
   }
 
   function checklistLabel(item: { key: string; label: string }) {
@@ -102,7 +223,15 @@ export function ExerciseMissionPanel({
     return 'Count'
   }
 
+  function countFailureAction(): ExerciseMissionQuickAction {
+    return counter?.repCount === 0 ? 'ai-count-zero' : 'count-missed'
+  }
+
   function renderMissionBody() {
+    const canRecordCameraFromAttempt = mission.canLogCameraSuccess || attemptPoseSummary.sawBody
+    const canRecordCalibrationFromAttempt = mission.canLogCalibrationSuccess || attemptHadCalibrationReady()
+    const canRecordCountFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising') && attemptPoseSummary.sawBody
+
     return (
       <div className="grid gap-3 p-4">
         <div className="grid grid-cols-[7rem_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-3">
@@ -129,6 +258,24 @@ export function ExerciseMissionPanel({
             <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{pose.detectionFps}</span>fps</div>
           </div>
         )}
+
+        <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-3">
+          <p className="text-[11px] leading-relaxed text-white/65">{attemptRecommendation()}</p>
+          <div className="grid grid-cols-3 gap-2 text-center text-[11px] text-white/60">
+            <div className="rounded-xl bg-white/[0.06] p-2">
+              <span className="block text-white">{attemptPoseSummary.bestVisibleLandmarks}</span>
+              Best seen this attempt
+            </div>
+            <div className="rounded-xl bg-white/[0.06] p-2">
+              <span className="block text-white">{Math.round(attemptPoseSummary.bestBodyConfidence * 100)}%</span>
+              best body
+            </div>
+            <div className="rounded-xl bg-white/[0.06] p-2">
+              <span className="block text-white">{attemptLastDetectedLabel()}</span>
+              Last detected
+            </div>
+          </div>
+        </div>
 
         {currentPhase === 'exercising' && counter && (
           <div className="rounded-2xl border border-sage-light/25 bg-sage-light/[0.08] p-3">
@@ -157,31 +304,89 @@ export function ExerciseMissionPanel({
         )}
 
         <div className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-3">
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              disabled={!mission.canLogCameraSuccess}
-              onClick={() => void run(() => onQuickAction('camera-pass'), 'Camera pass logged.')}
-              className="rounded-xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Log camera passed
-            </button>
-            <button
-              type="button"
-              disabled={!mission.canLogCalibrationSuccess}
-              onClick={() => void run(() => onQuickAction('calibration-pass'), 'Calibration pass logged.')}
-              className="rounded-xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Log calibration passed
-            </button>
-            <button
-              type="button"
-              disabled={!mission.canLogCountSuccess}
-              onClick={() => void run(() => onQuickAction('count-pass', countDiagnosticEvidence()), 'Count pass logged.')}
-              className="rounded-xl bg-sage-light px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              Log count passed
-            </button>
+          <p className="text-[11px] leading-relaxed text-white/55">
+            Record one result after each attempt. Camera failed = body never appeared; Tracking flicker = body dropped during movement/capture, not after you walk back.
+          </p>
+          <div className="grid gap-2">
+            <div className="grid grid-cols-[5.5rem_1fr_1fr] items-stretch gap-2">
+              <div className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/75">Camera</div>
+              <button
+                type="button"
+                disabled={!canRecordCameraFromAttempt}
+                onClick={() => void run(
+                  () => onQuickAction('camera-pass', countDiagnosticEvidence()),
+                  'Camera pass logged.',
+                  { key: 'camera-pass', text: 'Camera passed recorded.' },
+                )}
+                className={PASS_BUTTON_CLASS}
+              >
+                Log camera passed
+              </button>
+              <button
+                type="button"
+                onClick={() => void run(
+                  () => onQuickAction('camera-placement', countDiagnosticEvidence()),
+                  'Camera failed logged.',
+                  { key: 'camera-fail', text: 'Camera issue recorded.' },
+                )}
+                className={FAIL_BUTTON_CLASS}
+              >
+                Log camera failed
+              </button>
+            </div>
+            <div className="grid grid-cols-[5.5rem_1fr_1fr] items-stretch gap-2">
+              <div className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/75">Calib</div>
+              <button
+                type="button"
+                disabled={!canRecordCalibrationFromAttempt}
+                onClick={() => void run(
+                  () => onQuickAction('calibration-pass', countDiagnosticEvidence()),
+                  'Calibration pass logged.',
+                  { key: 'calibration-pass', text: 'Calibration passed recorded.' },
+                )}
+                className={PASS_BUTTON_CLASS}
+              >
+                Log calibration passed
+              </button>
+              <button
+                type="button"
+                onClick={() => void run(
+                  () => onQuickAction('calibration-stuck', countDiagnosticEvidence()),
+                  'Calibration failed logged.',
+                  { key: 'calibration-fail', text: 'Calibration issue recorded.' },
+                )}
+                className={FAIL_BUTTON_CLASS}
+              >
+                Log calibration failed
+              </button>
+            </div>
+            <div className="grid grid-cols-[5.5rem_1fr_1fr] items-stretch gap-2">
+              <div className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/75">Count</div>
+              <button
+                type="button"
+                disabled={!canRecordCountFromAttempt}
+                onClick={() => void run(
+                  () => onQuickAction('count-pass', countDiagnosticEvidence()),
+                  'Count pass logged.',
+                  { key: 'count-pass', text: 'Count passed recorded.' },
+                )}
+                className={COUNT_PASS_BUTTON_CLASS}
+              >
+                Log count passed
+              </button>
+              <button
+                type="button"
+                disabled={!canRecordCountFromAttempt}
+                onClick={() => void run(
+                  () => onQuickAction(countFailureAction(), countDiagnosticEvidence()),
+                  'Count failed logged.',
+                  { key: 'count-fail', text: 'Count issue recorded.' },
+                )}
+                className={FAIL_BUTTON_CLASS}
+              >
+                Log count failed
+              </button>
+            </div>
           </div>
           {(currentPhase === 'exercising' || currentPhase === 'capture') && (
             <div className="grid grid-cols-2 gap-2">
@@ -209,9 +414,7 @@ export function ExerciseMissionPanel({
               key={item.action}
               type="button"
               onClick={() => void run(
-                () => onQuickAction(item.action, item.action.startsWith('count') || item.action === 'false-count' || item.action === 'tracking-flicker'
-                  ? countDiagnosticEvidence()
-                  : undefined),
+                () => onQuickAction(item.action, countDiagnosticEvidence()),
                 `${item.label} logged.`,
               )}
               className="rounded-full border border-white/[0.12] bg-white/[0.07] px-3 py-1.5 text-xs text-white/75 active:bg-white/[0.15]"

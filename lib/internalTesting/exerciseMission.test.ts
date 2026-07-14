@@ -177,4 +177,41 @@ describe('exercise mission state', () => {
     assert.equal(zero.data.aiRepPhase, 'waiting_for_engaged_phase')
     assert.equal(zero.data.synthetic, true)
   })
+
+  it('records failed Camera and Calibration standards as internal-only failures with diagnostics', () => {
+    const camera = missionEventForQuickAction('camera-placement', automaticMovement, 'calibrating', undefined, {
+      visibleLandmarks: 0,
+      trackedLandmarks: 0,
+      bodyConfidence: 0,
+      framingStatus: 'no-body',
+    })
+    assert.equal(camera.eventType, 'blocker')
+    assert.equal(camera.data.action, 'camera-placement')
+    assert.equal(camera.data.outcome, 'fail')
+    assert.equal(camera.data.visibleLandmarks, 0)
+    assert.equal(camera.data.productionEvidence, false)
+
+    const calibration = missionEventForQuickAction('calibration-stuck', automaticMovement, 'calibrating', undefined, {
+      visibleLandmarks: 9,
+      trackedLandmarks: 4,
+      bodyConfidence: 0.35,
+      framingStatus: 'partial',
+    })
+    assert.equal(calibration.eventType, 'blocker')
+    assert.equal(calibration.data.action, 'calibration-stuck')
+    assert.equal(calibration.data.outcome, 'fail')
+    assert.equal(calibration.data.synthetic, true)
+
+    const flicker = missionEventForQuickAction('tracking-flicker', automaticMovement, 'calibrating', undefined, {
+      attemptSawBody: true,
+      attemptBestVisibleLandmarks: 22,
+      attemptLastDetectedAgeMs: 3200,
+      visibleLandmarks: 0,
+      framingStatus: 'no-body',
+    })
+    assert.equal(flicker.eventType, 'blocker')
+    assert.equal(flicker.data.action, 'tracking-flicker')
+    assert.equal(flicker.data.outcome, 'fail')
+    assert.equal(flicker.data.attemptSawBody, true)
+  })
 })
