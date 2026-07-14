@@ -20,6 +20,24 @@ describe('internal test persistence', () => {
     assert.throws(() => validateCompletion({ status: 'passed', synthetic: true, productionObservationId: 'obs-1' } as never))
   })
 
+  it('uses tester-friendly issue options while accepting legacy issue values', () => {
+    const source = readFileSync('lib/internalTesting/persistence.ts', 'utf8')
+    for (const label of [
+      'Camera issue',
+      'Calibration issue',
+      'Count missed',
+      'False count',
+      'Tracking flicker',
+      'Display issue',
+      'Performance issue',
+      'Other',
+    ]) {
+      assert.match(source, new RegExp(label))
+    }
+    assert.equal(validateCompletion({ status: 'failed', issueType: 'calibration-issue' }).issueType, 'calibration-issue')
+    assert.equal(validateCompletion({ status: 'failed', issueType: 'unable-to-continue' }).issueType, 'unable-to-continue')
+  })
+
   it('defines isolated tables with RLS and no production evidence foreign keys', () => {
     const sql = readFileSync('supabase/migrations/011_internal_movement_testing.sql', 'utf8')
     for (const table of ['internal_test_runs', 'internal_test_attempts', 'internal_test_events', 'internal_test_artifacts']) {

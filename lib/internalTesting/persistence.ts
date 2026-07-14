@@ -1,11 +1,30 @@
 import { getTestableMovement } from '@/lib/internalTesting/movementRegistry'
 import type { JsonValue } from '@/lib/internalTesting/trackingEvents'
 
-export const INTERNAL_ISSUE_TYPES = [
-  'unable-to-continue', 'missed-repetitions', 'extra-repetitions', 'incorrect-feedback',
-  'missing-feedback', 'camera-framing', 'display', 'performance', 'other',
+export const INTERNAL_ISSUE_OPTIONS = [
+  { type: 'camera-issue', label: 'Camera issue', description: 'Camera/framing/body visibility problem.' },
+  { type: 'calibration-issue', label: 'Calibration issue', description: 'Body is visible but calibration cannot become stable.' },
+  { type: 'count-missed', label: 'Count missed', description: 'Tester completed reps but AI missed one or more.' },
+  { type: 'false-count', label: 'False count', description: 'AI counted when the tester did not complete a rep.' },
+  { type: 'tracking-flicker', label: 'Tracking flicker', description: 'Body detection dropped during the movement/capture.' },
+  { type: 'display-issue', label: 'Display issue', description: 'Controls, layout, or labels blocked the tester.' },
+  { type: 'performance-issue', label: 'Performance issue', description: 'Lag, low FPS, freeze, heat, or slow response.' },
+  { type: 'other', label: 'Other', description: 'Anything that does not fit another issue type.' },
 ] as const
-export type InternalIssueType = typeof INTERNAL_ISSUE_TYPES[number]
+
+export const LEGACY_INTERNAL_ISSUE_TYPES = [
+  'unable-to-continue', 'missed-repetitions', 'extra-repetitions', 'incorrect-feedback',
+  'missing-feedback', 'camera-framing', 'display', 'performance',
+] as const
+
+export type InternalIssueType =
+  | (typeof INTERNAL_ISSUE_OPTIONS)[number]['type']
+  | (typeof LEGACY_INTERNAL_ISSUE_TYPES)[number]
+
+export const INTERNAL_ISSUE_TYPES: readonly InternalIssueType[] = [
+  ...INTERNAL_ISSUE_OPTIONS.map(option => option.type),
+  ...LEGACY_INTERNAL_ISSUE_TYPES,
+]
 export type AttemptStatus = 'active' | 'passed' | 'failed' | 'blocked' | 'retried' | 'skipped' | 'pending-upload'
 
 function object(value: unknown, label: string): Record<string, unknown> {
