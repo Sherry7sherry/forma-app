@@ -29,6 +29,18 @@ describe('directed runner controls', () => {
     assert.match(overlay, /aria-live="polite"/)
   })
 
+  it('resets the issue form after a saved issue and when the attempt context changes', () => {
+    const overlay = readFileSync('components/internalTesting/InternalTestOverlay.tsx', 'utf8')
+    const issueSheet = readFileSync('components/internalTesting/ReportIssueSheet.tsx', 'utf8')
+
+    assert.match(overlay, /resetKey=\{`\$\{movement\}:\$\{phase\}`\}/)
+    assert.match(issueSheet, /resetKey/)
+    assert.match(issueSheet, /useEffect/)
+    assert.match(issueSheet, /resetForm/)
+    assert.match(issueSheet, /await onSubmit/)
+    assert.match(issueSheet, /setNote\(''\)/)
+  })
+
   it('records lightweight pose diagnostics without implying video capture', () => {
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
     assert.match(hook, /recordPoseDiagnostics/)

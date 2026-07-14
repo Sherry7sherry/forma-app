@@ -25,7 +25,11 @@ export function InternalTestOverlay({
   const [actionNotice, setActionNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  async function runAction(action: () => Promise<void> | void, success: string) {
+  async function runAction(
+    action: () => Promise<void> | void,
+    success: string,
+    options: { rethrow?: boolean } = {},
+  ) {
     setBusy(true)
     setActionNotice('Saving internal test evidence…')
     try {
@@ -33,6 +37,7 @@ export function InternalTestOverlay({
       setActionNotice(success)
     } catch (error) {
       setActionNotice(`Could not record: ${error instanceof Error ? error.message : 'unknown error'}`)
+      if (options.rethrow) throw error
     } finally {
       setBusy(false)
     }
@@ -62,7 +67,9 @@ export function InternalTestOverlay({
           <ReportIssueSheet onSubmit={issue => runAction(
             () => onRecord(issue),
             'Problem recorded. You can retry or log + continue.',
+            { rethrow: true },
           )}
+          resetKey={`${movement}:${phase}`}
           />
           <div className="grid grid-cols-2 gap-2">
             <button
