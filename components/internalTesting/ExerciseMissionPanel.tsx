@@ -49,6 +49,7 @@ export function ExerciseMissionPanel({
 }) {
   const [observedCount, setObservedCount] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
+  const [mobileExpanded, setMobileExpanded] = useState(false)
   const mission = useMemo(
     () => deriveExerciseMissionState({ movement, phase: currentPhase, repeats: scenario.repeats, pose }),
     [currentPhase, movement, pose, scenario.repeats],
@@ -94,21 +95,15 @@ export function ExerciseMissionPanel({
     return item.label
   }
 
-  return (
-    <section className="pointer-events-auto fixed left-3 top-3 z-[90] w-[min(28rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.4rem] border border-white/[0.15] bg-slate-950/[0.88] text-white shadow-2xl backdrop-blur-xl">
-      <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(122,158,142,0.45),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.02))] p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-sage-light">QA mission</p>
-            <h2 className="mt-1 font-serif text-xl leading-tight">{movement.displayName}</h2>
-          </div>
-          <div className="rounded-full border border-white/[0.15] bg-black/25 px-3 py-1 text-[11px] uppercase tracking-wider text-white/70">
-            {currentPhase}
-          </div>
-        </div>
-        <p className="mt-3 text-sm text-white/[0.78]">{mission.headline}</p>
-      </div>
+  function mobileChecklistLabel(item: { key: string; label: string }) {
+    if (item.key === 'count' && counter) return `AI ${counter.repCount}/${scenario.repeats}`
+    if (item.key === 'camera') return 'Camera'
+    if (item.key === 'calibration') return 'Calib'
+    return 'Count'
+  }
 
+  function renderMissionBody() {
+    return (
       <div className="grid gap-3 p-4">
         <div className="grid grid-cols-[7rem_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-3">
           <div>
@@ -232,6 +227,70 @@ export function ExerciseMissionPanel({
           </p>
         )}
       </div>
-    </section>
+    )
+  }
+
+  return (
+    <>
+      <section
+        aria-label="Mobile mission summary"
+        className="pointer-events-auto fixed inset-x-3 bottom-3 z-[90] overflow-hidden rounded-[1.2rem] border border-white/[0.15] bg-slate-950/[0.9] text-white shadow-2xl backdrop-blur-xl md:hidden"
+      >
+        <div className="p-3">
+          <button
+            type="button"
+            aria-expanded={mobileExpanded}
+            onClick={() => setMobileExpanded(value => !value)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.24em] text-sage-light">
+                QA mission · {currentPhase}
+              </span>
+              <span className="mt-1 block truncate font-serif text-base leading-tight">{movement.displayName}</span>
+            </span>
+            <span className="shrink-0 rounded-full bg-sage-light px-3 py-1 text-[11px] font-semibold text-slate-950">
+              {mobileExpanded ? 'Hide controls' : 'Show controls'}
+            </span>
+          </button>
+          <div className="mt-2 grid grid-cols-3 gap-1">
+            {mission.checklist.map(item => (
+              <span
+                key={item.key}
+                className={`truncate rounded-full border px-2 py-1 text-center text-[10px] ${stateClass(item.state)}`}
+              >
+                {mobileChecklistLabel(item)}
+              </span>
+            ))}
+          </div>
+          {!mobileExpanded && (
+            <p className="mt-2 truncate text-[11px] text-white/55">{mission.headline}</p>
+          )}
+        </div>
+
+        {mobileExpanded && (
+          <div className="max-h-[42dvh] overflow-y-auto border-t border-white/10">
+            {renderMissionBody()}
+          </div>
+        )}
+      </section>
+
+      <section className="pointer-events-auto fixed left-3 top-3 z-[90] hidden w-[min(28rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.4rem] border border-white/[0.15] bg-slate-950/[0.88] text-white shadow-2xl backdrop-blur-xl md:block">
+        <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(122,158,142,0.45),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.02))] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-sage-light">QA mission</p>
+              <h2 className="mt-1 font-serif text-xl leading-tight">{movement.displayName}</h2>
+            </div>
+            <div className="rounded-full border border-white/[0.15] bg-black/25 px-3 py-1 text-[11px] uppercase tracking-wider text-white/70">
+              {currentPhase}
+            </div>
+          </div>
+          <p className="mt-3 text-sm text-white/[0.78]">{mission.headline}</p>
+        </div>
+
+        {renderMissionBody()}
+      </section>
+    </>
   )
 }
