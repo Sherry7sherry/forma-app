@@ -41,7 +41,12 @@ describe('directed runner controls', () => {
     for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {
       const source = readFileSync(`components/internalTesting/${name}`, 'utf8')
       assert.match(source, /recordPoseDiagnostics/)
-      assert.match(source, /onPoseResult=\{recordPoseDiagnostics\}/)
+      if (name === 'DirectedExerciseRunner.tsx') {
+        assert.match(source, /onPoseResult=\{handlePoseResult\}/)
+        assert.match(source, /recordPoseDiagnostics\(result\)/)
+      } else {
+        assert.match(source, /onPoseResult=\{recordPoseDiagnostics\}/)
+      }
       assert.doesNotMatch(source, /onPoseResult=\{\(\)=>\{\}\}/)
     }
   })
@@ -52,6 +57,35 @@ describe('directed runner controls', () => {
     assert.match(source, /nextAssessmentScenario/)
     assert.match(source, /router\.push/)
     assert.match(source, /await forceContinue\(\)/)
+  })
+
+  it('passes the selected directed scenario phase into the exercise runner', () => {
+    const page = readFileSync('app/internal/test-lab/run/page.tsx', 'utf8')
+    const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+
+    assert.match(page, /const scenario\s*=\s*parseTestScenario/)
+    assert.match(page, /<DirectedExerciseRunner movement=\{movement\} scenario=\{parsedScenario\}/)
+    assert.match(runner, /scenario:\s*TestScenario/)
+    assert.match(runner, /useDirectedAttempt\(movement,\s*scenario\.phase\)/)
+    assert.match(runner, /phase=\{scenario\.phase\}/)
+    assert.doesNotMatch(runner, /useDirectedAttempt\(movement,\s*'calibrating'\)/)
+    assert.doesNotMatch(runner, /phase="calibrating"/)
+  })
+
+  it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
+    const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+    const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+    const mission = readFileSync('lib/internalTesting/exerciseMission.ts', 'utf8')
+
+    assert.match(runner, /ExerciseMissionPanel/)
+    assert.match(runner, /onQuickAction=\{recordQuickAction\}/)
+    assert.match(runner, /onCountObserved=\{recordCountObservation\}/)
+    assert.match(hook, /recordQuickAction/)
+    assert.match(hook, /recordCountObservation/)
+    assert.match(hook, /missionEventForQuickAction\('count-observed'/)
+    assert.match(mission, /productionEvidence:\s*false/)
+    assert.match(panel, /scenario\.phase === 'exercising' &&/)
   })
 
   for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {
