@@ -9,6 +9,8 @@ import { missionEventForQuickAction, type ExerciseMissionQuickAction } from '@/l
 import type { ProductionRepCounterEvent } from '@/lib/repCounting/productionRepCounter'
 
 const DIAGNOSTIC_SAMPLE_INTERVAL_MS = 500
+type EvidenceValue = string | number | boolean | null
+type EvidencePayload = Record<string, EvidenceValue | undefined>
 
 async function request(path: string, body: unknown) {
   const response = await fetch(path, {
@@ -66,34 +68,54 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
     setNotice('Problem logged. You can retry or log and continue.')
   }, [append])
 
-  const recordQuickAction = useCallback(async (action: ExerciseMissionQuickAction) => {
-    await append(missionEventForQuickAction(action, movement, phase))
+  const recordQuickAction = useCallback(async (
+    action: ExerciseMissionQuickAction,
+    eventPhase = phase,
+    evidence: EvidencePayload = {},
+  ) => {
+    await append(missionEventForQuickAction(action, movement, eventPhase, undefined, evidence))
     setNotice('Quick internal annotation logged. Production data was not changed.')
   }, [append, movement, phase])
 
-  const recordCountObservation = useCallback(async (observedCount: number) => {
-    await append(missionEventForQuickAction('count-observed', movement, phase, observedCount))
+  const recordCountObservation = useCallback(async (
+    observedCount: number,
+    eventPhase = phase,
+    evidence: EvidencePayload = {},
+  ) => {
+    await append(missionEventForQuickAction('count-observed', movement, eventPhase, observedCount, evidence))
     setNotice(`Tester-observed count logged (${observedCount}). Production data was not changed.`)
   }, [append, movement, phase])
 
-  const recordAiCountObservation = useCallback(async (event: ProductionRepCounterEvent) => {
-    if (event.type !== 'count') return
+  const recordAiCounterEvent = useCallback(async (
+    event: ProductionRepCounterEvent,
+    eventPhase = phase,
+    evidence: EvidencePayload = {},
+  ) => {
+    const eventType = event.type === 'pose_update'
+      ? 'pose_sample'
+      : event.type === 'quality_cue'
+        ? 'feedback'
+        : event.type
     await append({
-      eventType: 'count',
+      eventType,
       elapsedMs: 0,
       data: {
-        action: 'ai-counted',
+        action: event.type === 'count' ? 'ai-counted' : 'ai-counter',
+        aiCounterEvent: event.type,
         movementId: movement.id,
-        phase,
+        phase: eventPhase,
+        ...evidence,
         ...event.data,
         productionEvidence: false,
         synthetic: true,
       },
     })
-    setNotice(`AI count signal logged (${event.data.repCount ?? 'unknown'}). Production data was not changed.`)
+    if (event.type === 'count') {
+      setNotice(`AI count signal logged (${event.data.repCount ?? 'unknown'}). Production data was not changed.`)
+    }
   }, [append, movement.id, phase])
 
-  const recordPoseDiagnostics = useCallback((result: PoseResult) => {
+  const recordPoseDiagnostics = useCallback((result: PoseResult, eventPhase = phase) => {
     if (!attemptId) return
     const now = Date.now()
     if (now - lastPoseDiagnosticAtRef.current < DIAGNOSTIC_SAMPLE_INTERVAL_MS) return
@@ -105,7 +127,7 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
       data: {
         movementId: movement.id,
         movementName: movement.displayName,
-        phase,
+        phase: eventPhase,
         framingStatus: result.framingStatus,
         formScore: result.formScore,
         feedbackTypes: result.feedback.map(item => item.type),
@@ -127,11 +149,11 @@ export function useDirectedAttempt(movement: TestableMovement, phase: string) {
     })
   }, [append, attemptId, movement.displayName, movement.id, phase])
 
-  const forceContinue = useCallback(async () => {
-    await append({ eventType: 'synthetic_transition', elapsedMs: 0, reason: 'tester-force-continue', synthetic: true })
+  const forceContinue = useCallback(async (eventPhase = phase) => {
+    await append({ eventType: 'synthetic_transition', elapsedMs: 0, reason: 'tester-force-continue', phase: eventPhase, synthetic: true })
     await request(`/api/internal-tests/attempts/${attemptId}/complete`, { status: 'skipped', synthetic: true })
     setNotice('Synthetic continuation recorded. This did not update production data.')
-  }, [append, attemptId])
+  }, [append, attemptId, phase])
 
-  return { notice, recordIssue, recordPoseDiagnostics, recordQuickAction, recordCountObservation, recordAiCountObservation, forceContinue }
+  return { notice, recordIssue, recordPoseDiagnostics, recordQuickAction, recordCountObservation, recordAiCounterEvent, forceContinue }
 }

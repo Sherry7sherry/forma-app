@@ -43,9 +43,10 @@ describe('directed runner controls', () => {
       assert.match(source, /recordPoseDiagnostics/)
       if (name === 'DirectedExerciseRunner.tsx') {
         assert.match(source, /onPoseResult=\{handlePoseResult\}/)
-        assert.match(source, /recordPoseDiagnostics\(result\)/)
+        assert.match(source, /recordPoseDiagnostics\(result,\s*currentPhase\)/)
       } else {
-        assert.match(source, /onPoseResult=\{recordPoseDiagnostics\}/)
+        assert.match(source, /onPoseResult=\{handlePoseResult\}/)
+        assert.match(source, /recordPoseDiagnostics\(result,\s*currentPhase\)/)
       }
       assert.doesNotMatch(source, /onPoseResult=\{\(\)=>\{\}\}/)
     }
@@ -56,7 +57,7 @@ describe('directed runner controls', () => {
     assert.match(source, /useRouter/)
     assert.match(source, /nextAssessmentScenario/)
     assert.match(source, /router\.push/)
-    assert.match(source, /await forceContinue\(\)/)
+    assert.match(source, /await forceContinue\(currentPhase\)/)
   })
 
   it('passes the parsed test scenario into a runner-owned current phase', () => {
@@ -66,7 +67,8 @@ describe('directed runner controls', () => {
     assert.match(page, /const scenario\s*=\s*parseTestScenario/)
     assert.match(page, /<DirectedExerciseRunner movement=\{movement\} scenario=\{parsedScenario\}/)
     assert.match(runner, /scenario:\s*TestScenario/)
-    assert.match(runner, /useDirectedAttempt\(movement,\s*currentPhase\)/)
+    assert.match(runner, /useDirectedAttempt\(movement,\s*attemptPhase\)/)
+    assert.match(runner, /const attemptPhase = scenario\.phase === 'full-run' \? 'full-run' : currentPhase/)
     assert.match(runner, /phase=\{currentPhase\}/)
     assert.doesNotMatch(runner, /useDirectedAttempt\(movement,\s*'calibrating'\)/)
     assert.doesNotMatch(runner, /phase="calibrating"/)
@@ -96,12 +98,38 @@ describe('directed runner controls', () => {
 
     assert.match(runner, /ExerciseMissionPanel/)
     assert.match(runner, /onQuickAction=\{handleQuickAction\}/)
-    assert.match(runner, /onCountObserved=\{recordCountObservation\}/)
+    assert.match(runner, /onCountObserved=\{\(count,\s*evidence\)\s*=>\s*recordCountObservation\(count,\s*currentPhase,\s*evidence\)\}/)
     assert.match(hook, /recordQuickAction/)
     assert.match(hook, /recordCountObservation/)
     assert.match(hook, /missionEventForQuickAction\('count-observed'/)
     assert.match(mission, /productionEvidence:\s*false/)
     assert.match(panel, /currentPhase === 'exercising' &&/)
+  })
+
+  it('uses unified Camera Calibration Count standards across assessment and exercise runs', () => {
+    const page = readFileSync('app/internal/test-lab/run/page.tsx', 'utf8')
+    const assessmentRunner = readFileSync('components/internalTesting/DirectedAssessmentRunner.tsx', 'utf8')
+    const exerciseRunner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+    const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
+
+    assert.match(page, /<DirectedAssessmentRunner movement=\{movement\} scenario=\{parsedScenario\}/)
+    assert.match(assessmentRunner, /ExerciseMissionPanel/)
+    assert.match(assessmentRunner, /currentPhase/)
+    assert.match(exerciseRunner, /const attemptPhase = scenario\.phase === 'full-run' \? 'full-run' : currentPhase/)
+    assert.match(exerciseRunner, /useDirectedAttempt\(movement,\s*attemptPhase\)/)
+    assert.match(panel, /Camera/)
+    assert.match(panel, /Calibration/)
+    assert.match(panel, /Count/)
+    assert.match(panel, /Log camera passed/)
+    assert.match(panel, /Log calibration passed/)
+    assert.match(panel, /Log count passed/)
+    assert.match(panel, /AI \$\{counter\.repCount\}\/\$\{scenario\.repeats\}/)
+    assert.match(panel, /AI count stuck at 0/)
+    assert.match(hook, /recordAiCounterEvent/)
+    assert.match(panel, /aiRepPhase/)
+    assert.match(exerciseRunner, /engageThreshold/)
+    assert.match(exerciseRunner, /returnThreshold/)
   })
 
   it('shares the production rep counter with the directed exercise lab', () => {
@@ -119,10 +147,11 @@ describe('directed runner controls', () => {
     assert.doesNotMatch(session, /function processAutoRep/)
     assert.doesNotMatch(session, /normalizedPoseDistance|repBaselineRef|repCooldownRef/)
     assert.match(runner, /useProductionRepCounter/)
-    assert.match(runner, /recordAiCountObservation/)
+    assert.match(runner, /recordAiCounterEvent/)
+    assert.match(runner, /onEvent: recordAiCounterEvent/)
     assert.match(panel, /AI count/)
     assert.match(panel, /counter\.status\.chip/)
-    assert.doesNotMatch(runner, /normalizedPoseDistance|engageThreshold|returnThreshold/)
+    assert.doesNotMatch(runner, /normalizedPoseDistance|repBaselineRef|repCooldownRef/)
   })
 
   for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {

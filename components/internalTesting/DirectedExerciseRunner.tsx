@@ -10,6 +10,7 @@ import type { PoseResult } from '@/components/camera/PoseCamera'
 import { FLOOR_EXERCISE_NAMES, getExerciseTrackingProfile } from '@/lib/exerciseTracking'
 import {
   poseSnapshotFromResult,
+  type ExerciseMissionCountEvidence,
   type ExerciseMissionPoseSnapshot,
   type ExerciseMissionQuickAction,
 } from '@/lib/internalTesting/exerciseMission'
@@ -38,6 +39,7 @@ export function DirectedExerciseRunner({
     setCurrentPhase(initialExercisePhase(scenario))
     setPose(null)
   }, [movement.id, scenario])
+  const attemptPhase = scenario.phase === 'full-run' ? 'full-run' : currentPhase
 
   const {
     notice,
@@ -45,21 +47,36 @@ export function DirectedExerciseRunner({
     recordPoseDiagnostics,
     recordQuickAction,
     recordCountObservation,
-    recordAiCountObservation,
+    recordAiCounterEvent: logAiCounterEvent,
     forceContinue,
-  } = useDirectedAttempt(movement, currentPhase)
+  } = useDirectedAttempt(movement, attemptPhase)
 
   const isFloorExercise = FLOOR_EXERCISE_NAMES.has(movement.exerciseName)
   const trackingProfile = useMemo(
     () => getExerciseTrackingProfile(movement.exerciseName, isFloorExercise),
     [movement.exerciseName, isFloorExercise],
   )
+  const countEvidenceBase = useMemo<ExerciseMissionCountEvidence>(() => ({
+    targetReps: scenario.repeats,
+    trackingMode: trackingProfile.mode,
+    cameraOrientation: trackingProfile.cameraOrientation,
+    engageThreshold: trackingProfile.engageThreshold,
+    returnThreshold: trackingProfile.returnThreshold,
+    minVisibleLandmarks: trackingProfile.minVisibleLandmarks,
+    minVisibleRatio: trackingProfile.minVisibleRatio,
+    confidenceThreshold: trackingProfile.confidenceThreshold,
+  }), [scenario.repeats, trackingProfile])
+
+  const recordAiCounterEvent = useCallback((event: Parameters<typeof logAiCounterEvent>[0]) => {
+    void logAiCounterEvent(event, currentPhase, countEvidenceBase)
+  }, [countEvidenceBase, currentPhase, logAiCounterEvent])
+
   const counter = useProductionRepCounter({
     exerciseName: movement.exerciseName,
     trackingProfile,
     targetReps: scenario.repeats,
     enabled: currentPhase === 'exercising',
-    onCount: recordAiCountObservation,
+    onEvent: recordAiCounterEvent,
   })
 
   const advanceFullRun = useCallback(() => {
@@ -69,20 +86,20 @@ export function DirectedExerciseRunner({
     }
   }, [counter, currentPhase, isFullRun])
 
-  const handleQuickAction = useCallback(async (action: ExerciseMissionQuickAction) => {
-    await recordQuickAction(action)
-    if (action === 'calibration-ready') advanceFullRun()
-  }, [advanceFullRun, recordQuickAction])
+  const handleQuickAction = useCallback(async (action: ExerciseMissionQuickAction, evidence: ExerciseMissionCountEvidence = {}) => {
+    await recordQuickAction(action, currentPhase, evidence)
+    if (action === 'calibration-pass' || action === 'calibration-ready') advanceFullRun()
+  }, [advanceFullRun, currentPhase, recordQuickAction])
 
   const continueCurrentPhase = useCallback(async () => {
-    await forceContinue()
+    await forceContinue(currentPhase)
     advanceFullRun()
-  }, [advanceFullRun, forceContinue])
+  }, [advanceFullRun, currentPhase, forceContinue])
 
   const handlePoseResult = useCallback((result: PoseResult) => {
     setPose(poseSnapshotFromResult(result))
     if (currentPhase === 'exercising') counter.processPose(result)
-    recordPoseDiagnostics(result)
+    recordPoseDiagnostics(result, currentPhase)
   }, [counter, currentPhase, recordPoseDiagnostics])
 
   return (
@@ -104,8 +121,9 @@ export function DirectedExerciseRunner({
         currentPhase={currentPhase}
         pose={pose}
         counter={counter}
+        countEvidence={countEvidenceBase}
         onQuickAction={handleQuickAction}
-        onCountObserved={recordCountObservation}
+        onCountObserved={(count, evidence) => recordCountObservation(count, currentPhase, evidence)}
       />
       <InternalTestOverlay
         movement={movement.displayName}

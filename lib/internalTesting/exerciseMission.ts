@@ -1,14 +1,20 @@
 import type { FramingStatus, PoseDiagnostics } from '@/components/camera/PoseCamera'
-import type { ExerciseTestableMovement, TestableMovement } from '@/lib/internalTesting/types'
+import type { TestableMovement } from '@/lib/internalTesting/types'
 
 export type ExerciseMissionPhase = 'setup' | 'capture' | 'calibrating' | 'exercising' | string
 export type ExerciseMissionStatus = 'setup' | 'waiting' | 'ready' | 'observing'
 export type ExerciseMissionChecklistState = 'pending' | 'active' | 'done' | 'warn'
+type EvidenceValue = string | number | boolean | null
+export type ExerciseMissionCountEvidence = Record<string, EvidenceValue | undefined>
 export type ExerciseMissionQuickAction =
+  | 'camera-pass'
   | 'camera-placement'
   | 'calibration-stuck'
+  | 'calibration-pass'
   | 'calibration-ready'
+  | 'count-pass'
   | 'count-observed'
+  | 'ai-count-zero'
   | 'count-missed'
   | 'false-count'
   | 'tracking-flicker'
@@ -32,7 +38,7 @@ export interface ExerciseMissionChecklistItem {
 
 export interface ExerciseMissionState {
   status: ExerciseMissionStatus
-  countMode: ExerciseTestableMovement['trackingMode']
+  countMode: TestableMovement['trackingMode']
   headline: string
   guidance: string
   guardrail: string
@@ -41,11 +47,14 @@ export interface ExerciseMissionState {
     value: string
   }
   canLogSuccess: boolean
+  canLogCameraSuccess: boolean
+  canLogCalibrationSuccess: boolean
+  canLogCountSuccess: boolean
   checklist: ExerciseMissionChecklistItem[]
 }
 
 interface MissionInput {
-  movement: ExerciseTestableMovement
+  movement: TestableMovement
   phase: ExerciseMissionPhase
   repeats: number
   pose: ExerciseMissionPoseSnapshot | null
@@ -84,24 +93,31 @@ function bodyReady(pose: ExerciseMissionPoseSnapshot | null) {
   return genericFullBodyReady || trackingProfileReady
 }
 
-function checklistFor(pose: ExerciseMissionPoseSnapshot | null, phase: ExerciseMissionPhase): ExerciseMissionChecklistItem[] {
+function checklistFor(
+  pose: ExerciseMissionPoseSnapshot | null,
+  phase: ExerciseMissionPhase,
+  movement: TestableMovement,
+): ExerciseMissionChecklistItem[] {
   const hasCamera = cameraReady(pose)
   const hasBody = bodyReady(pose)
+  const countActive = phase === 'exercising' || phase === 'capture'
   return [
     {
-      key: 'camera-ready',
-      label: hasCamera ? 'Camera sees a body' : 'Find body in frame',
+      key: 'camera',
+      label: hasCamera ? 'Camera · Pass' : 'Camera · Find body in frame',
       state: hasCamera ? 'done' : 'active',
     },
     {
-      key: 'body-visible',
-      label: hasBody ? 'Full-body landmarks stable' : 'Make whole movement visible',
+      key: 'calibration',
+      label: hasBody ? 'Calibration · Pass' : 'Calibration · Make required body shape visible',
       state: hasBody ? 'done' : hasCamera ? 'active' : 'pending',
     },
     {
-      key: 'record-evidence',
-      label: phase === 'exercising' ? 'Log count behavior' : 'Log calibration result',
-      state: hasBody ? 'active' : 'pending',
+      key: 'count',
+      label: movement.kind === 'assessment'
+        ? 'Count · Capture assessment evidence'
+        : 'Count · Verify AI count',
+      state: countActive && hasBody ? 'active' : hasBody ? 'pending' : 'pending',
     },
   ]
 }
@@ -110,6 +126,11 @@ export function deriveExerciseMissionState({ movement, phase, repeats, pose }: M
   const hasBody = bodyReady(pose)
   const countMode = movement.trackingMode
   const guardrail = 'No Test Lab-only counting. This panel records tester observations as internal evidence only.'
+  const common = {
+    canLogCameraSuccess: cameraReady(pose),
+    canLogCalibrationSuccess: hasBody,
+    canLogCountSuccess: hasBody && (phase === 'exercising' || phase === 'capture'),
+  }
 
   if (phase === 'calibrating') {
     return {
@@ -125,7 +146,8 @@ export function deriveExerciseMissionState({ movement, phase, repeats, pose }: M
         value: hasBody ? 'Ready' : 'Needs body',
       },
       canLogSuccess: hasBody,
-      checklist: checklistFor(pose, phase),
+      ...common,
+      checklist: checklistFor(pose, phase, movement),
     }
   }
 
@@ -144,7 +166,25 @@ export function deriveExerciseMissionState({ movement, phase, repeats, pose }: M
         value: `${repeats} ${repeats === 1 ? 'rep' : 'reps'}`,
       },
       canLogSuccess: hasBody,
-      checklist: checklistFor(pose, phase),
+      ...common,
+      checklist: checklistFor(pose, phase, movement),
+    }
+  }
+
+  if (phase === 'capture' && movement.kind === 'assessment') {
+    return {
+      status: 'observing',
+      countMode,
+      headline: 'Capture assessment count evidence',
+      guidance: 'Use the same Camera, Calibration, Count standards. Mark count passed when the assessment movement evidence was captured clearly.',
+      guardrail,
+      primaryMetric: {
+        label: 'Assessment',
+        value: 'Evidence',
+      },
+      canLogSuccess: hasBody,
+      ...common,
+      checklist: checklistFor(pose, phase, movement),
     }
   }
 
@@ -159,8 +199,22 @@ export function deriveExerciseMissionState({ movement, phase, repeats, pose }: M
       value: phase,
     },
     canLogSuccess: false,
-    checklist: checklistFor(pose, phase),
+    ...common,
+    checklist: checklistFor(pose, phase, movement),
   }
+}
+
+function outcomeFor(action: ExerciseMissionQuickAction) {
+  if (action === 'camera-pass' || action === 'calibration-pass' || action === 'calibration-ready' || action === 'count-pass') return 'pass'
+  if (action === 'ai-count-zero' || action === 'count-missed' || action === 'false-count') return 'fail'
+  return 'note'
+}
+
+function eventTypeFor(action: ExerciseMissionQuickAction) {
+  if (action === 'camera-pass') return 'camera_status'
+  if (action === 'calibration-pass' || action === 'calibration-ready') return 'calibration'
+  if (action === 'count-pass' || action === 'count-observed') return 'count'
+  return 'blocker'
 }
 
 export function missionEventForQuickAction(
@@ -168,15 +222,21 @@ export function missionEventForQuickAction(
   movement: Pick<TestableMovement, 'id'>,
   phase: ExerciseMissionPhase,
   observedCount?: number,
+  evidence: Record<string, EvidenceValue | undefined> = {},
 ) {
-  const eventType = action === 'count-observed' ? 'count' : action === 'calibration-ready' ? 'calibration' : 'blocker'
-  const data: Record<string, string | number | boolean> = {
+  const eventType = eventTypeFor(action)
+  const data: Record<string, EvidenceValue> = {
     action,
     movementId: movement.id,
     phase,
+    outcome: outcomeFor(action),
     productionEvidence: false,
     synthetic: true,
   }
   if (action === 'count-observed') data.observedCount = observedCount ?? 0
+  if (action === 'ai-count-zero') data.reason = 'ai-count-zero'
+  for (const [key, value] of Object.entries(evidence)) {
+    if (value !== undefined) data[key] = value
+  }
   return { eventType, elapsedMs: 0, data }
 }
