@@ -132,6 +132,28 @@ describe('directed runner controls', () => {
     assert.match(exerciseRunner, /returnThreshold/)
   })
 
+  it('makes pass/fail recording and voice feedback explicit for each Test Lab standard', () => {
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(panel, /createVoiceCoach/)
+    assert.match(panel, /voiceCoachRef\.current\.unlock/)
+    assert.match(panel, /voiceCoachRef\.current\.speak/)
+    assert.match(panel, /Log camera failed/)
+    assert.match(panel, /Log calibration failed/)
+    assert.match(panel, /Log count failed/)
+    assert.match(panel, /Recommended record/)
+    assert.match(panel, /Body not detected/)
+    assert.match(panel, /If detection appeared and then dropped/)
+    assert.match(panel, /Log Tracking flicker only if it dropped during the movement/)
+    assert.match(panel, /canRecordCameraFromAttempt/)
+    assert.match(panel, /canRecordCalibrationFromAttempt/)
+    assert.match(panel, /Best seen this attempt/)
+    assert.match(panel, /Last detected/)
+    assert.match(panel, /attemptBestVisibleLandmarks/)
+    assert.match(panel, /disabled:bg-white\/\[0\.12\]/)
+    assert.match(panel, /disabled:text-white\/35/)
+  })
+
   it('keeps the test lab mission board compact on phones and portrait tablets', () => {
     const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
     const overlay = readFileSync('components/internalTesting/InternalTestOverlay.tsx', 'utf8')

@@ -1,9 +1,11 @@
 import nextVitals from 'eslint-config-next/core-web-vitals'
 
 const config = [
+  {
+    ignores: ['.next/**', '.test-build/**', 'node_modules/**'],
+  },
   ...nextVitals,
   {
-    ignores: ['.next/**', 'node_modules/**'],
     rules: {
       'react/no-unescaped-entities': 'off',
       'react-hooks/immutability': 'off',
