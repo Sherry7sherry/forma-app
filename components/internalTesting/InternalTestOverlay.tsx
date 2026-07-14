@@ -39,7 +39,7 @@ export function InternalTestOverlay({
   }
 
   return (
-    <aside className="pointer-events-auto fixed right-3 top-3 z-[100] w-[min(14rem,calc(100vw-1.5rem))] rounded-2xl bg-slate-950/[0.9] p-3 text-white shadow-2xl backdrop-blur-xl sm:bottom-3 sm:top-auto sm:w-[min(22rem,calc(100vw-1.5rem))]">
+    <aside className="pointer-events-auto fixed right-3 top-3 z-[100] w-[min(14rem,calc(100vw-1.5rem))] rounded-2xl bg-slate-950/[0.9] p-3 text-white shadow-2xl backdrop-blur-xl lg:bottom-3 lg:top-auto lg:w-[min(22rem,calc(100vw-1.5rem))]">
       <button
         type="button"
         onClick={() => setOpen(value => !value)}
