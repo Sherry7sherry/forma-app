@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 
-import { INTERNAL_ISSUE_TYPES, type InternalIssueType } from '@/lib/internalTesting/persistence'
+import { INTERNAL_ISSUE_OPTIONS, type InternalIssueType } from '@/lib/internalTesting/persistence'
 
-const DEFAULT_ISSUE_TYPE: InternalIssueType = 'unable-to-continue'
+const DEFAULT_ISSUE_TYPE: InternalIssueType = 'camera-issue'
 
 interface InternalIssuePayload {
   type: InternalIssueType
@@ -20,6 +20,7 @@ export function ReportIssueSheet({
 }) {
   const [type, setType] = useState<InternalIssueType>(DEFAULT_ISSUE_TYPE)
   const [note, setNote] = useState('')
+  const selectedIssue = INTERNAL_ISSUE_OPTIONS.find(option => option.type === type)
 
   function resetForm() {
     setType(DEFAULT_ISSUE_TYPE)
@@ -42,10 +43,13 @@ export function ReportIssueSheet({
         onChange={event => setType(event.target.value as InternalIssueType)}
         className="rounded-xl p-2 text-charcoal"
       >
-        {INTERNAL_ISSUE_TYPES.map(issueType => (
-          <option key={issueType}>{issueType}</option>
+        {INTERNAL_ISSUE_OPTIONS.map(option => (
+          <option key={option.type} value={option.type}>{option.label}</option>
         ))}
       </select>
+      {selectedIssue?.description ? (
+        <p className="text-xs text-white/60">{selectedIssue.description}</p>
+      ) : null}
       <textarea
         aria-label="Optional note"
         value={note}

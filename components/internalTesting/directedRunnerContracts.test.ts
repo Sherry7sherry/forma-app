@@ -41,6 +41,15 @@ describe('directed runner controls', () => {
     assert.match(issueSheet, /setNote\(''\)/)
   })
 
+  it('shows tester-friendly issue labels instead of internal issue slugs', () => {
+    const issueSheet = readFileSync('components/internalTesting/ReportIssueSheet.tsx', 'utf8')
+
+    assert.match(issueSheet, /INTERNAL_ISSUE_OPTIONS/)
+    assert.match(issueSheet, /option\.label/)
+    assert.match(issueSheet, /selectedIssue\?\.description/)
+    assert.doesNotMatch(issueSheet, /INTERNAL_ISSUE_TYPES\.map/)
+  })
+
   it('records lightweight pose diagnostics without implying video capture', () => {
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
     assert.match(hook, /recordPoseDiagnostics/)
