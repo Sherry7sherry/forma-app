@@ -4,19 +4,20 @@ import { describe, it } from 'node:test'
 
 describe('session rep feedback copy', () => {
   const source = readFileSync('app/session/[id]/SessionPlayer.tsx', 'utf8')
+  const counter = readFileSync('lib/repCounting/productionRepCounter.ts', 'utf8')
 
   it('uses short immediate counted-rep voice copy', () => {
-    assert.match(source, /text:\s*'Good\.'/)
-    assert.match(source, /cooldownMs:\s*0/)
+    assert.match(counter, /text:\s*'Good\.'/)
+    assert.match(counter, /cooldownMs:\s*0/)
     assert.doesNotMatch(source, /Nice, rep counted/)
-    assert.doesNotMatch(source, /cooldownMs:\s*26_000/)
+    assert.doesNotMatch(counter, /cooldownMs:\s*26_000/)
   })
 
   it('uses actionable not-counted messages', () => {
-    assert.match(source, /Move a little bigger/)
-    assert.match(source, /Return to start/)
-    assert.match(source, /Step back, I need your full body/)
-    assert.match(source, /Improve lighting or slow down/)
+    assert.match(counter, /Move a little bigger/)
+    assert.match(counter, /Return to start/)
+    assert.match(counter, /Step back, I need your full body/)
+    assert.match(counter, /Improve lighting or slow down/)
   })
 
   it('renders the rep cycle stage labels', () => {
@@ -29,18 +30,18 @@ describe('session rep feedback copy', () => {
 
   it('contains initial Glute Bridge and Chest Lift quality cues', () => {
     assert.match(source, /qualityCue/)
-    assert.match(source, /Keep both hips level/)
-    assert.match(source, /Press knees forward/)
-    assert.match(source, /Lift from your glutes/)
-    assert.match(source, /Keep your neck long/)
-    assert.match(source, /Soften your ribs/)
-    assert.match(source, /Leave space under your chin/)
+    assert.match(counter, /Keep both hips level/)
+    assert.match(counter, /Press knees forward/)
+    assert.match(counter, /Lift from your glutes/)
+    assert.match(counter, /Keep your neck long/)
+    assert.match(counter, /Soften your ribs/)
+    assert.match(counter, /Leave space under your chin/)
   })
 
   it('shows a strong center-screen counted rep confirmation', () => {
     assert.match(source, /\+1/)
     assert.match(source, /rep-pulse/)
-    assert.match(source, /REP_COUNTED_DISPLAY_MS\s*=\s*800/)
+    assert.match(counter, /REP_COUNTED_DISPLAY_MS\s*=\s*800/)
   })
 
   it('explains calibration start blockers and exposes delayed manual fallback', () => {

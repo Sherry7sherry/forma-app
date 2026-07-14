@@ -88,6 +88,27 @@ describe('directed runner controls', () => {
     assert.match(panel, /scenario\.phase === 'exercising' &&/)
   })
 
+  it('shares the production rep counter with the directed exercise lab', () => {
+    const session = readFileSync('app/session/[id]/SessionPlayer.tsx', 'utf8')
+    const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(session, /from '@\/lib\/repCounting\/productionRepCounter'/)
+    assert.match(session, /useProductionRepCounter/)
+    assert.match(session, /processAutoRepRef\.current = result => processRepPose\(result\)/)
+    assert.match(session, /describeAiRepStatus/)
+    assert.match(session, /requiredVisibleLandmarks/)
+    assert.doesNotMatch(session, /function describeAiRepStatus/)
+    assert.doesNotMatch(session, /function requiredVisibleLandmarks/)
+    assert.doesNotMatch(session, /function processAutoRep/)
+    assert.doesNotMatch(session, /normalizedPoseDistance|repBaselineRef|repCooldownRef/)
+    assert.match(runner, /useProductionRepCounter/)
+    assert.match(runner, /recordAiCountObservation/)
+    assert.match(panel, /AI count/)
+    assert.match(panel, /counter\.status\.chip/)
+    assert.doesNotMatch(runner, /normalizedPoseDistance|engageThreshold|returnThreshold/)
+  })
+
   for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {
     it(`${name} persists report and force-continue actions`, () => {
       const source = readFileSync(`components/internalTesting/${name}`, 'utf8')

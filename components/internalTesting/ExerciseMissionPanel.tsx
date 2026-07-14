@@ -9,6 +9,7 @@ import {
 } from '@/lib/internalTesting/exerciseMission'
 import type { TestScenario } from '@/lib/internalTesting/scenarios'
 import type { ExerciseTestableMovement } from '@/lib/internalTesting/types'
+import type { ProductionRepCounterView } from '@/lib/repCounting/useProductionRepCounter'
 
 const QUICK_ACTIONS: { action: ExerciseMissionQuickAction; label: string }[] = [
   { action: 'camera-placement', label: 'Camera placement' },
@@ -29,12 +30,14 @@ export function ExerciseMissionPanel({
   movement,
   scenario,
   pose,
+  counter,
   onQuickAction,
   onCountObserved,
 }: {
   movement: ExerciseTestableMovement
   scenario: TestScenario
   pose: ExerciseMissionPoseSnapshot | null
+  counter?: ProductionRepCounterView
   onQuickAction(action: ExerciseMissionQuickAction): Promise<void> | void
   onCountObserved(count: number): Promise<void> | void
 }) {
@@ -99,6 +102,32 @@ export function ExerciseMissionPanel({
             <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{pose.trackedLandmarks}</span>tracked</div>
             <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{Math.round(pose.bodyConfidence * 100)}%</span>body</div>
             <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{pose.detectionFps}</span>fps</div>
+          </div>
+        )}
+
+        {scenario.phase === 'exercising' && counter && (
+          <div className="rounded-2xl border border-sage-light/25 bg-sage-light/[0.08] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">AI count</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{counter.repCount}<span className="text-sm text-white/45"> / {scenario.repeats}</span></p>
+              </div>
+              <div className="rounded-full bg-black/30 px-3 py-1 text-xs text-sage-light">
+                {counter.status.chip}
+              </div>
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-white/60">{counter.status.message}</p>
+            <div className="mt-3 grid grid-cols-4 gap-1" aria-label="Production rep cycle">
+              {(['Start', 'Move', 'Return', 'Count'] as const).map(stage => (
+                <div
+                  key={stage}
+                  className={`h-1.5 rounded-full ${counter.cycleStage === stage ? 'bg-sage-light' : 'bg-white/15'}`}
+                  aria-label={stage}
+                />
+              ))}
+            </div>
+            {counter.repFlash && <p className="mt-2 text-xs font-semibold text-sage-light">+1 counted by production logic</p>}
+            {counter.qualityCue && <p className="mt-2 text-xs text-sage-light">{counter.qualityCue}</p>}
           </div>
         )}
 
