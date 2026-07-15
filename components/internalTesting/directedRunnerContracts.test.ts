@@ -180,6 +180,30 @@ describe('directed runner controls', () => {
     assert.doesNotMatch(panel, /return 'Hold still with your whole body in frame\.'/)
   })
 
+  it('uses the active production tracking requirement for missing body parts', () => {
+    const assessmentRunner = readFileSync('components/internalTesting/DirectedAssessmentRunner.tsx', 'utf8')
+    const exerciseRunner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+
+    for (const source of [assessmentRunner, exerciseRunner]) {
+      assert.match(source, /trackingLandmarks=\{trackingProfile\.landmarks\}/)
+      assert.match(source, /trackingMinVisibility=\{trackingProfile\.minVisibility\}/)
+      assert.match(source, /poseSnapshotFromResult\(result,\s*\{[\s\S]*?landmarks: trackingProfile\.landmarks,[\s\S]*?minVisibility: trackingProfile\.minVisibility,[\s\S]*?\}\)/)
+    }
+    assert.match(assessmentRunner, /getExerciseTrackingProfile\(movement\.exerciseName, false\)/)
+    assert.match(assessmentRunner, /framingRequirement=\{movement\.postureFamily === 'seated' \? 'seated-torso' : 'full-body'\}/)
+  })
+
+  it('shows and voices specific missing regions without changing pass readiness', () => {
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(panel, /pose\.missingBodyParts\.slice\(0, 3\)/)
+    assert.match(panel, /Keypoints needed:/)
+    assert.match(panel, /function cameraGuidanceText[\s\S]*?specificMissingBodyPartCue\(pose\)/)
+    assert.match(panel, /function calibrationGuidanceText[\s\S]*?specificMissingBodyPartCue\(pose\)/)
+    assert.match(panel, /missingBodyParts: pose\?\.missingBodyParts\.join\(', '\) \|\| null/)
+    assert.match(panel, /canRecordCameraFromAttempt = currentPhase === 'camera' && \(mission\.canLogCameraSuccess \|\| attemptHadCameraReady\(\)\)/)
+  })
+
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')

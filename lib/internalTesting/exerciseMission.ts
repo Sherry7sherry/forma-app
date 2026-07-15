@@ -1,4 +1,5 @@
 import type { FramingStatus, PoseDiagnostics } from '@/components/camera/PoseCamera'
+import { missingRequiredBodyParts } from './landmarkGuidance'
 import type { TestableMovement } from '@/lib/internalTesting/types'
 
 export type ExerciseMissionPhase = 'setup' | 'camera' | 'capture' | 'calibrating' | 'exercising' | string
@@ -28,6 +29,12 @@ export interface ExerciseMissionPoseSnapshot {
   deviceClass: PoseDiagnostics['deviceClass']
   orientation: PoseDiagnostics['orientation']
   feedbackTypes: string[]
+  missingBodyParts: string[]
+}
+
+export interface ExerciseMissionTrackingRequirement {
+  landmarks: readonly number[]
+  minVisibility: number
 }
 
 export interface ExerciseMissionChecklistItem {
@@ -64,8 +71,9 @@ export function poseSnapshotFromResult(result: {
   framingStatus: FramingStatus
   bodyConfidence: number
   feedback: { type: string }[]
+  landmarks: readonly { visibility?: number }[]
   diagnostics: Pick<PoseDiagnostics, 'visibleLandmarks' | 'trackedLandmarks' | 'detectionFps' | 'deviceClass' | 'orientation'>
-}): ExerciseMissionPoseSnapshot {
+}, trackingRequirement: ExerciseMissionTrackingRequirement): ExerciseMissionPoseSnapshot {
   return {
     framingStatus: result.framingStatus,
     bodyConfidence: Number(result.bodyConfidence.toFixed(3)),
@@ -75,6 +83,11 @@ export function poseSnapshotFromResult(result: {
     deviceClass: result.diagnostics.deviceClass,
     orientation: result.diagnostics.orientation,
     feedbackTypes: result.feedback.map(item => item.type),
+    missingBodyParts: missingRequiredBodyParts({
+      landmarks: result.landmarks,
+      requiredLandmarks: trackingRequirement.landmarks,
+      minVisibility: trackingRequirement.minVisibility,
+    }),
   }
 }
 

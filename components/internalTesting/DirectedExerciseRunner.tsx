@@ -113,10 +113,13 @@ export function DirectedExerciseRunner({
   }, [currentPhase, forceContinue, nextExerciseUrl, router])
 
   const handlePoseResult = useCallback((result: PoseResult) => {
-    setPose(poseSnapshotFromResult(result))
+    setPose(poseSnapshotFromResult(result, {
+      landmarks: trackingProfile.landmarks,
+      minVisibility: trackingProfile.minVisibility,
+    }))
     if (currentPhase === 'exercising') counter.processPose(result)
     recordPoseDiagnostics(result, currentPhase)
-  }, [counter, currentPhase, recordPoseDiagnostics])
+  }, [counter, currentPhase, recordPoseDiagnostics, trackingProfile])
 
   return (
     <div className="min-h-dvh bg-charcoal">
