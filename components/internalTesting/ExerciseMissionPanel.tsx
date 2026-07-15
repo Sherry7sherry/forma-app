@@ -61,9 +61,13 @@ function stateClass(state: string) {
   return 'border-white/10 bg-white/[0.05] text-white/55'
 }
 
+function hasNoBodyLandmarks(pose: ExerciseMissionPoseSnapshot | null) {
+  return !pose || (pose.visibleLandmarks === 0 && pose.trackedLandmarks === 0)
+}
+
 function cameraGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
-  if (!pose || pose.framingStatus === 'no-body') {
-    return 'Move back or tilt the camera until your head and feet are both visible.'
+  if (!pose || pose.framingStatus === 'no-body' || hasNoBodyLandmarks(pose)) {
+    return 'We need body landmarks, not just confidence. Move back or tilt the camera until your head, torso, hips, and feet are visible.'
   }
   if (pose.framingStatus === 'upper-body') {
     return 'Lower or tilt the camera down so your legs and feet are visible.'
@@ -71,7 +75,7 @@ function cameraGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
   if (pose.framingStatus === 'partial') {
     return 'Center your whole body in the frame and improve the lighting.'
   }
-  return 'Hold still with your whole body in frame.'
+  return 'Keep your whole body centered while the camera locks body landmarks.'
 }
 
 function calibrationGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
@@ -291,6 +295,15 @@ export function ExerciseMissionPanel({
   }
 
   function attemptRecommendation() {
+    if (
+      currentPhase === 'camera'
+      && !mission.canLogCameraSuccess
+      && attemptPoseSummary.bestBodyConfidence >= 0.55
+      && attemptPoseSummary.bestVisibleLandmarks === 0
+      && attemptPoseSummary.bestTrackedLandmarks === 0
+    ) {
+      return 'Recommended record: We have a confidence signal but 0 body landmarks. Confidence alone is not a camera pass. Move back or tilt until at least 18 landmarks or enough required tracking points are visible; after 30s, log Camera issue.'
+    }
     if (currentPhase === 'camera' && !mission.canLogCameraSuccess) {
       return 'Recommended record: High confidence alone is not a camera pass. Keep adjusting placement until head, torso, hips, and required limbs are visible. If it still has not passed after 30s, log Camera issue.'
     }
@@ -404,15 +417,15 @@ export function ExerciseMissionPanel({
           <div className="grid grid-cols-3 gap-2 text-center text-[11px] text-white/60">
             <div className="rounded-xl bg-white/[0.06] p-2">
               <span className="block text-white">{attemptPoseSummary.bestVisibleLandmarks}</span>
-              Best seen this attempt
+              Best landmarks this attempt
             </div>
             <div className="rounded-xl bg-white/[0.06] p-2">
               <span className="block text-white">{Math.round(attemptPoseSummary.bestBodyConfidence * 100)}%</span>
-              best confidence
+              confidence signal
             </div>
             <div className="rounded-xl bg-white/[0.06] p-2">
               <span className="block text-white">{attemptLastDetectedLabel()}</span>
-              Last detected
+              Last signal
             </div>
           </div>
         </div>
