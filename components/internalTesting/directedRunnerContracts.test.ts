@@ -132,6 +132,17 @@ describe('directed runner controls', () => {
     assert.match(panel, /Please log a count issue/)
   })
 
+  it('voices human-confirmation prompts when each Test Lab gate becomes ready', () => {
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(panel, /Camera passed\. Please tap Log camera passed\./)
+    assert.match(panel, /Calibration passed\. Please tap Log calibration passed\./)
+    assert.match(panel, /Count is ready\. Please tap Log count passed\./)
+    assert.match(panel, /Camera has not passed\. Please log a camera issue\./)
+    assert.match(panel, /Calibration has not passed\. Please log a calibration issue\./)
+    assert.match(panel, /AI count is still zero\. Please log a count issue\./)
+  })
+
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')

@@ -29,6 +29,7 @@ const CAMERA_TIMEOUT_MS = 30_000
 const CALIBRATION_TIMEOUT_MS = 30_000
 const COUNT_ZERO_TIMEOUT_MS = 60_000
 const PHASE_GUIDANCE_COOLDOWN_MS = 8_000
+const PASS_CONFIRMATION_COOLDOWN_MS = 15_000
 
 interface AttemptPoseSummary {
   sawBody: boolean
@@ -113,6 +114,12 @@ export function ExerciseMissionPanel({
     [currentPhase, movement, pose, scenario.repeats],
   )
   const aiRepCount = counter?.repCount ?? null
+  const countReadyForHumanConfirmation = (currentPhase === 'capture' && mission.canLogCountSuccess)
+    || (
+      currentPhase === 'exercising'
+      && mission.canLogCountSuccess
+      && (mission.countMode !== 'automatic' || (aiRepCount ?? 0) > 0)
+    )
 
   useEffect(() => {
     setAttemptPoseSummary(EMPTY_ATTEMPT_POSE_SUMMARY)
@@ -132,6 +139,16 @@ export function ExerciseMissionPanel({
   }, [currentPhase, mission.canLogCameraSuccess, pose])
 
   useEffect(() => {
+    if (currentPhase !== 'camera' || !mission.canLogCameraSuccess) return
+    setNotice('Camera passed. Tap Log camera passed to confirm.')
+    voiceCoachRef.current.speak({
+      key: `camera-pass-ready-${movement.id}`,
+      text: 'Camera passed. Please tap Log camera passed.',
+      cooldownMs: PASS_CONFIRMATION_COOLDOWN_MS,
+    }, true)
+  }, [currentPhase, mission.canLogCameraSuccess, movement.id])
+
+  useEffect(() => {
     if (currentPhase === 'calibrating' && !mission.canLogCalibrationSuccess) {
       voiceCoachRef.current.speak({
         key: `calibration-guidance-${pose?.framingStatus ?? 'missing'}`,
@@ -140,6 +157,26 @@ export function ExerciseMissionPanel({
       }, true)
     }
   }, [currentPhase, mission.canLogCalibrationSuccess, pose])
+
+  useEffect(() => {
+    if (currentPhase !== 'calibrating' || !mission.canLogCalibrationSuccess) return
+    setNotice('Calibration passed. Tap Log calibration passed to confirm.')
+    voiceCoachRef.current.speak({
+      key: `calibration-pass-ready-${movement.id}`,
+      text: 'Calibration passed. Please tap Log calibration passed.',
+      cooldownMs: PASS_CONFIRMATION_COOLDOWN_MS,
+    }, true)
+  }, [currentPhase, mission.canLogCalibrationSuccess, movement.id])
+
+  useEffect(() => {
+    if (!countReadyForHumanConfirmation) return
+    setNotice('Count is ready. Tap Log count passed to confirm.')
+    voiceCoachRef.current.speak({
+      key: `count-pass-ready-${movement.id}`,
+      text: 'Count is ready. Please tap Log count passed.',
+      cooldownMs: PASS_CONFIRMATION_COOLDOWN_MS,
+    }, true)
+  }, [countReadyForHumanConfirmation, movement.id])
 
   useEffect(() => {
     if (currentPhase !== 'camera' || mission.canLogCameraSuccess) return
@@ -326,7 +363,7 @@ export function ExerciseMissionPanel({
     const canRecordCalibrationFromAttempt = currentPhase === 'calibrating' && (mission.canLogCalibrationSuccess || attemptHadCalibrationReady())
     const canRecordCountPassFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising')
       && mission.canLogCountSuccess
-      && (!counter || counter.repCount > 0)
+      && (mission.countMode !== 'automatic' || !counter || counter.repCount > 0)
     const canRecordCountFailureFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising') && attemptPoseSummary.sawBody
 
     return (
