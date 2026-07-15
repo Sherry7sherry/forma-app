@@ -67,6 +67,27 @@ interface MissionInput {
   pose: ExerciseMissionPoseSnapshot | null
 }
 
+interface CountPassAttemptInput {
+  phase: ExerciseMissionPhase
+  countMode: TestableMovement['trackingMode']
+  currentBodyReady: boolean
+  attemptBodyReady: boolean
+  aiRepCount: number | null
+}
+
+export function canRecordCountPassFromAttempt({
+  phase,
+  countMode,
+  currentBodyReady,
+  attemptBodyReady,
+  aiRepCount,
+}: CountPassAttemptInput) {
+  const countPhase = phase === 'exercising' || phase === 'capture'
+  const bodyWasReady = currentBodyReady || attemptBodyReady
+  const countSignalReady = countMode !== 'automatic' || (aiRepCount ?? 0) > 0
+  return countPhase && bodyWasReady && countSignalReady
+}
+
 export function poseSnapshotFromResult(result: {
   framingStatus: FramingStatus
   bodyConfidence: number

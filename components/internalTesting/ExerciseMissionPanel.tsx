@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
+  canRecordCountPassFromAttempt,
   deriveExerciseMissionState,
   type ExerciseMissionCountEvidence,
   type ExerciseMissionPhase,
@@ -150,12 +151,13 @@ export function ExerciseMissionPanel({
     [currentPhase, movement, pose, scenario.repeats],
   )
   const aiRepCount = counter?.repCount ?? null
-  const countReadyForHumanConfirmation = (currentPhase === 'capture' && mission.canLogCountSuccess)
-    || (
-      currentPhase === 'exercising'
-      && mission.canLogCountSuccess
-      && (mission.countMode !== 'automatic' || (aiRepCount ?? 0) > 0)
-    )
+  const countReadyForHumanConfirmation = canRecordCountPassFromAttempt({
+    phase: currentPhase,
+    countMode: mission.countMode,
+    currentBodyReady: mission.canLogCountSuccess,
+    attemptBodyReady: attemptHadCameraReady(),
+    aiRepCount,
+  })
   const cameraReadyForHumanConfirmation = currentPhase === 'camera'
     && (mission.canLogCameraSuccess || attemptHadCameraReady())
   const visibleMissingBodyParts = specificMissingBodyParts(pose)
@@ -419,9 +421,7 @@ export function ExerciseMissionPanel({
   function renderMissionBody() {
     const canRecordCameraFromAttempt = currentPhase === 'camera' && (mission.canLogCameraSuccess || attemptHadCameraReady())
     const canRecordCalibrationFromAttempt = currentPhase === 'calibrating' && (mission.canLogCalibrationSuccess || attemptHadCalibrationReady())
-    const canRecordCountPassFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising')
-      && mission.canLogCountSuccess
-      && (mission.countMode !== 'automatic' || !counter || counter.repCount > 0)
+    const canRecordCountPass = countReadyForHumanConfirmation
     const canRecordCountFailureFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising') && attemptPoseSummary.sawBody
 
     return (
@@ -562,7 +562,7 @@ export function ExerciseMissionPanel({
               <div className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/75">Count</div>
               <button
                 type="button"
-                disabled={!canRecordCountPassFromAttempt}
+                disabled={!canRecordCountPass}
                 onClick={() => void run(
                   () => onQuickAction('count-pass', countDiagnosticEvidence()),
                   'Count pass logged.',
