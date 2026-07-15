@@ -143,6 +143,14 @@ describe('directed runner controls', () => {
     assert.match(panel, /AI count is still zero\. Please log a count issue\./)
   })
 
+  it('advances to the next movement after the final count pass is recorded', () => {
+    const assessmentRunner = readFileSync('components/internalTesting/DirectedAssessmentRunner.tsx', 'utf8')
+    const exerciseRunner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+
+    assert.match(assessmentRunner, /action === 'count-pass'[\s\S]*?router\.push\(nextAssessmentUrl\(\)\)/)
+    assert.match(exerciseRunner, /action === 'count-pass'[\s\S]*?router\.push\(nextExerciseUrl\(\)\)/)
+  })
+
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
