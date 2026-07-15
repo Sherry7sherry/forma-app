@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { ExerciseMissionPanel } from './ExerciseMissionPanel'
 import { InternalTestOverlay } from './InternalTestOverlay'
@@ -14,6 +15,7 @@ import {
   type ExerciseMissionPoseSnapshot,
   type ExerciseMissionQuickAction,
 } from '@/lib/internalTesting/exerciseMission'
+import { nextExerciseScenario } from '@/lib/internalTesting/assessmentSequence'
 import type { TestScenario, TestScenarioPhase } from '@/lib/internalTesting/scenarios'
 import type { ExerciseTestableMovement } from '@/lib/internalTesting/types'
 import { useProductionRepCounter } from '@/lib/repCounting/useProductionRepCounter'
@@ -21,7 +23,7 @@ import { useProductionRepCounter } from '@/lib/repCounting/useProductionRepCount
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
 
 function initialExercisePhase(scenario: TestScenario): TestScenarioPhase {
-  return scenario.phase === 'full-run' ? 'calibrating' : scenario.phase
+  return scenario.phase === 'full-run' ? 'camera' : scenario.phase
 }
 
 export function DirectedExerciseRunner({
@@ -31,6 +33,7 @@ export function DirectedExerciseRunner({
   movement: ExerciseTestableMovement
   scenario: TestScenario
 }) {
+  const router = useRouter()
   const isFullRun = scenario.phase === 'full-run'
   const [currentPhase, setCurrentPhase] = useState<TestScenarioPhase>(() => initialExercisePhase(scenario))
   const [pose, setPose] = useState<ExerciseMissionPoseSnapshot | null>(null)
@@ -79,22 +82,29 @@ export function DirectedExerciseRunner({
     onEvent: recordAiCounterEvent,
   })
 
-  const advanceFullRun = useCallback(() => {
-    if (isFullRun && currentPhase !== 'exercising') {
+  const advanceFullRun = useCallback((action: ExerciseMissionQuickAction) => {
+    if (!isFullRun) return
+    if (action === 'camera-pass') setCurrentPhase('calibrating')
+    if (action === 'calibration-pass' || action === 'calibration-ready') {
       setCurrentPhase('exercising')
       counter.reset(0)
     }
-  }, [counter, currentPhase, isFullRun])
+  }, [counter, isFullRun])
 
   const handleQuickAction = useCallback(async (action: ExerciseMissionQuickAction, evidence: ExerciseMissionCountEvidence = {}) => {
     await recordQuickAction(action, currentPhase, evidence)
-    if (action === 'calibration-pass' || action === 'calibration-ready') advanceFullRun()
+    advanceFullRun(action)
   }, [advanceFullRun, currentPhase, recordQuickAction])
 
-  const continueCurrentPhase = useCallback(async () => {
+  const nextExerciseUrl = useCallback(() => {
+    const next = nextExerciseScenario(movement.id, scenario.repeats)
+    return next ? `/internal/test-lab/run?${next}` : '/internal/test-lab'
+  }, [movement.id, scenario.repeats])
+
+  const continueToNextMovement = useCallback(async () => {
     await forceContinue(currentPhase)
-    advanceFullRun()
-  }, [advanceFullRun, currentPhase, forceContinue])
+    router.push(nextExerciseUrl())
+  }, [currentPhase, forceContinue, nextExerciseUrl, router])
 
   const handlePoseResult = useCallback((result: PoseResult) => {
     setPose(poseSnapshotFromResult(result))
@@ -112,7 +122,7 @@ export function DirectedExerciseRunner({
         trackingLandmarks={trackingProfile.landmarks}
         trackingMinVisibility={trackingProfile.minVisibility}
         fill
-        overlayMode={currentPhase === 'calibrating' ? 'calibration' : 'minimal'}
+        overlayMode={currentPhase === 'camera' || currentPhase === 'calibrating' ? 'calibration' : 'minimal'}
         onPoseResult={handlePoseResult}
       />
       <ExerciseMissionPanel
@@ -131,7 +141,7 @@ export function DirectedExerciseRunner({
         notice={notice}
         onRecord={recordIssue}
         onRetry={() => location.reload()}
-        onForceContinue={continueCurrentPhase}
+        onForceContinue={continueToNextMovement}
         onEnd={() => history.back()}
       />
     </div>

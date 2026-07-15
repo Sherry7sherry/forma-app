@@ -45,6 +45,38 @@ function pose(overrides: Partial<ExerciseMissionPoseSnapshot> = {}): ExerciseMis
 }
 
 describe('exercise mission state', () => {
+  it('keeps camera pass locked until the required body shape is in frame', () => {
+    const noBody = deriveExerciseMissionState({
+      movement: automaticMovement,
+      phase: 'camera',
+      repeats: 3,
+      pose: pose({ framingStatus: 'no-body', bodyConfidence: 0, visibleLandmarks: 0, trackedLandmarks: 0 }),
+    })
+    assert.equal(noBody.canLogCameraSuccess, false)
+    assert.ok(noBody.checklist.some(item => item.key === 'camera' && item.state === 'active'))
+
+    const partial = deriveExerciseMissionState({
+      movement: automaticMovement,
+      phase: 'camera',
+      repeats: 3,
+      pose: pose({ framingStatus: 'partial', bodyConfidence: 0.35, visibleLandmarks: 9, trackedLandmarks: 4 }),
+    })
+    assert.equal(partial.canLogCameraSuccess, false)
+    assert.equal(partial.canLogCalibrationSuccess, false)
+    assert.ok(partial.checklist.some(item => item.key === 'camera' && item.state === 'active'))
+    assert.ok(partial.checklist.some(item => item.key === 'calibration' && item.state === 'pending'))
+
+    const ready = deriveExerciseMissionState({
+      movement: automaticMovement,
+      phase: 'camera',
+      repeats: 3,
+      pose: pose(),
+    })
+    assert.equal(ready.status, 'ready')
+    assert.equal(ready.canLogCameraSuccess, true)
+    assert.ok(ready.checklist.some(item => item.key === 'camera' && item.state === 'done'))
+  })
+
   it('turns calibrating diagnostics into a clear ready or stuck state', () => {
     const waiting = deriveExerciseMissionState({
       movement: automaticMovement,
@@ -56,8 +88,8 @@ describe('exercise mission state', () => {
     assert.equal(waiting.primaryMetric.label, 'Calibration')
     assert.match(waiting.primaryMetric.value, /Needs body/)
     assert.equal(waiting.canLogSuccess, false)
-    assert.ok(waiting.checklist.some(item => item.key === 'camera' && item.state === 'done'))
-    assert.ok(waiting.checklist.some(item => item.key === 'calibration' && item.state === 'active'))
+    assert.ok(waiting.checklist.some(item => item.key === 'camera' && item.state === 'active'))
+    assert.ok(waiting.checklist.some(item => item.key === 'calibration' && item.state === 'pending'))
 
     const ready = deriveExerciseMissionState({
       movement: automaticMovement,

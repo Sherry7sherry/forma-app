@@ -1,7 +1,7 @@
 import type { FramingStatus, PoseDiagnostics } from '@/components/camera/PoseCamera'
 import type { TestableMovement } from '@/lib/internalTesting/types'
 
-export type ExerciseMissionPhase = 'setup' | 'capture' | 'calibrating' | 'exercising' | string
+export type ExerciseMissionPhase = 'setup' | 'camera' | 'capture' | 'calibrating' | 'exercising' | string
 export type ExerciseMissionStatus = 'setup' | 'waiting' | 'ready' | 'observing'
 export type ExerciseMissionChecklistState = 'pending' | 'active' | 'done' | 'warn'
 type EvidenceValue = string | number | boolean | null
@@ -78,10 +78,6 @@ export function poseSnapshotFromResult(result: {
   }
 }
 
-function cameraReady(pose: ExerciseMissionPoseSnapshot | null) {
-  return !!pose && pose.framingStatus !== 'no-body' && pose.visibleLandmarks > 0
-}
-
 function bodyReady(pose: ExerciseMissionPoseSnapshot | null) {
   if (!pose) return false
   const genericFullBodyReady = pose.framingStatus === 'full-body'
@@ -93,6 +89,10 @@ function bodyReady(pose: ExerciseMissionPoseSnapshot | null) {
   return genericFullBodyReady || trackingProfileReady
 }
 
+function cameraReady(pose: ExerciseMissionPoseSnapshot | null) {
+  return bodyReady(pose)
+}
+
 function checklistFor(
   pose: ExerciseMissionPoseSnapshot | null,
   phase: ExerciseMissionPhase,
@@ -101,10 +101,33 @@ function checklistFor(
   const hasCamera = cameraReady(pose)
   const hasBody = bodyReady(pose)
   const countActive = phase === 'exercising' || phase === 'capture'
+
+  if (phase === 'camera') {
+    return [
+      {
+        key: 'camera',
+        label: hasCamera ? 'Camera · Pass' : 'Camera · Get full body in frame',
+        state: hasCamera ? 'done' : 'active',
+      },
+      {
+        key: 'calibration',
+        label: 'Calibration · Waiting for camera',
+        state: 'pending',
+      },
+      {
+        key: 'count',
+        label: movement.kind === 'assessment'
+          ? 'Count · Capture assessment evidence'
+          : 'Count · Verify AI count',
+        state: 'pending',
+      },
+    ]
+  }
+
   return [
     {
       key: 'camera',
-      label: hasCamera ? 'Camera · Pass' : 'Camera · Find body in frame',
+      label: hasCamera ? 'Camera · Pass' : 'Camera · Get full body in frame',
       state: hasCamera ? 'done' : 'active',
     },
     {
@@ -123,13 +146,33 @@ function checklistFor(
 }
 
 export function deriveExerciseMissionState({ movement, phase, repeats, pose }: MissionInput): ExerciseMissionState {
+  const hasCamera = cameraReady(pose)
   const hasBody = bodyReady(pose)
   const countMode = movement.trackingMode
   const guardrail = 'No Test Lab-only counting. This panel records tester observations as internal evidence only.'
   const common = {
-    canLogCameraSuccess: cameraReady(pose),
-    canLogCalibrationSuccess: hasBody,
+    canLogCameraSuccess: hasCamera,
+    canLogCalibrationSuccess: phase !== 'camera' && hasBody,
     canLogCountSuccess: hasBody && (phase === 'exercising' || phase === 'capture'),
+  }
+
+  if (phase === 'camera') {
+    return {
+      status: hasCamera ? 'ready' : 'waiting',
+      countMode,
+      headline: hasCamera ? 'Camera looks ready' : 'Fit your whole body in frame',
+      guidance: hasCamera
+        ? 'Log camera passed to start calibration.'
+        : 'Move the camera back or tilt it until your head, torso, hips, and required limbs are visible.',
+      guardrail,
+      primaryMetric: {
+        label: 'Camera',
+        value: hasCamera ? 'Ready' : 'Needs full body',
+      },
+      canLogSuccess: hasCamera,
+      ...common,
+      checklist: checklistFor(pose, phase, movement),
+    }
   }
 
   if (phase === 'calibrating') {
@@ -138,7 +181,7 @@ export function deriveExerciseMissionState({ movement, phase, repeats, pose }: M
       countMode,
       headline: hasBody ? 'Calibration looks ready' : 'Calibrate the camera position',
       guidance: hasBody
-        ? 'Log calibration passed if the production camera overlay also looks stable, then continue to exercising.'
+        ? 'Log calibration passed to start the count test.'
         : 'Adjust distance, angle, and lighting until the whole required body shape stays visible.',
       guardrail,
       primaryMetric: {

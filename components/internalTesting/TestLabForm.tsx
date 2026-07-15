@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { TESTABLE_MOVEMENTS } from '@/lib/internalTesting/movementRegistry'
 import { serializeTestScenario, type TestScenarioPhase } from '@/lib/internalTesting/scenarios'
 
-const ADVANCED_JUMP_PHASES: TestScenarioPhase[] = ['capture', 'calibrating', 'exercising']
+const ADVANCED_JUMP_PHASES: TestScenarioPhase[] = ['camera', 'capture', 'calibrating', 'exercising']
 
 export function TestLabForm() {
   const router = useRouter()

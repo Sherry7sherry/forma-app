@@ -11,6 +11,14 @@ describe('internal test scenario', () => {
     assert.deepEqual(parseTestScenario(params), scenario)
   })
 
+  it('allows a camera gate before calibration and counting', () => {
+    const scenario = { movementId: 'exercise:glute-bridge', phase: 'camera', scenarioId: 'automatic-count', repeats: 3 } satisfies TestScenario
+    const params = serializeTestScenario(scenario)
+
+    assert.equal(params.get('phase'), 'camera')
+    assert.deepEqual(parseTestScenario(params), scenario)
+  })
+
   it('round-trips a stable versioned scenario URL', () => {
     const scenario = { movementId: 'exercise:glute-bridge', phase: 'calibrating', scenarioId: 'automatic-count', repeats: 3 } satisfies TestScenario
     const params = serializeTestScenario(scenario)
