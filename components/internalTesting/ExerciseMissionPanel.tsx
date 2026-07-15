@@ -65,10 +65,38 @@ function hasNoBodyLandmarks(pose: ExerciseMissionPoseSnapshot | null) {
   return !pose || (pose.visibleLandmarks === 0 && pose.trackedLandmarks === 0)
 }
 
+function formatBodyParts(bodyParts: readonly string[]) {
+  if (bodyParts.length === 0) return ''
+  if (bodyParts.length === 1) return bodyParts[0]
+  if (bodyParts.length === 2) return `${bodyParts[0]} and ${bodyParts[1]}`
+  return `${bodyParts.slice(0, -1).join(', ')}, and ${bodyParts.at(-1)}`
+}
+
+function specificMissingBodyParts(pose: ExerciseMissionPoseSnapshot | null) {
+  if (!pose || pose.visibleLandmarks === 0) return []
+  return pose.missingBodyParts.slice(0, 3)
+}
+
+function specificMissingBodyPartCue(pose: ExerciseMissionPoseSnapshot | null) {
+  const bodyParts = specificMissingBodyParts(pose)
+  return bodyParts.length > 0 ? `Missing ${formatBodyParts(bodyParts)}.` : null
+}
+
+function specificPlacementInstruction(bodyParts: readonly string[]) {
+  const missingLowerBody = bodyParts.some(part => /knee|ankle/.test(part))
+  const missingUpperBody = bodyParts.some(part => /head|shoulder/.test(part))
+  if (missingLowerBody && missingUpperBody) return 'Move the camera farther back so your full body fits.'
+  if (missingLowerBody) return 'Tilt the camera down or move it farther back.'
+  if (missingUpperBody) return 'Tilt the camera up or move it farther back.'
+  return 'Center your body and improve the lighting on that area.'
+}
+
 function cameraGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
   if (!pose || pose.framingStatus === 'no-body' || hasNoBodyLandmarks(pose)) {
     return 'We need body landmarks, not just confidence. Move back or tilt the camera until your head, torso, hips, and feet are visible.'
   }
+  const specificCue = specificMissingBodyPartCue(pose)
+  if (specificCue) return `${specificCue} ${specificPlacementInstruction(specificMissingBodyParts(pose))}`
   if (pose.framingStatus === 'upper-body') {
     return 'Lower or tilt the camera down so your legs and feet are visible.'
   }
@@ -81,6 +109,10 @@ function cameraGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
 function calibrationGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
   if (!pose || pose.framingStatus === 'no-body') {
     return 'I cannot calibrate yet. Bring your whole body back into the frame.'
+  }
+  const specificCue = specificMissingBodyPartCue(pose)
+  if (specificCue) {
+    return `${specificCue} ${specificPlacementInstruction(specificMissingBodyParts(pose))} Then hold your starting position.`
   }
   if (pose.bodyConfidence < 0.55) {
     return 'Hold your starting position and improve lighting so calibration can lock.'
@@ -126,6 +158,12 @@ export function ExerciseMissionPanel({
     )
   const cameraReadyForHumanConfirmation = currentPhase === 'camera'
     && (mission.canLogCameraSuccess || attemptHadCameraReady())
+  const visibleMissingBodyParts = specificMissingBodyParts(pose)
+  const showSpecificMissingBodyParts = visibleMissingBodyParts.length > 0
+    && (
+      (currentPhase === 'camera' && !cameraReadyForHumanConfirmation)
+      || (currentPhase === 'calibrating' && !mission.canLogCalibrationSuccess)
+    )
 
   useEffect(() => {
     setAttemptPoseSummary(EMPTY_ATTEMPT_POSE_SUMMARY)
@@ -341,6 +379,7 @@ export function ExerciseMissionPanel({
       trackedLandmarks: pose?.trackedLandmarks ?? null,
       bodyConfidence: counter?.diagnostics.confidence ?? pose?.bodyConfidence ?? null,
       framingStatus: pose?.framingStatus ?? null,
+      missingBodyParts: pose?.missingBodyParts.join(', ') || null,
       delta: counter?.diagnostics.delta ?? null,
       attemptSawBody: attemptPoseSummary.sawBody,
       attemptBestVisibleLandmarks: attemptPoseSummary.bestVisibleLandmarks,
@@ -402,6 +441,12 @@ export function ExerciseMissionPanel({
             </div>
           ))}
         </div>
+
+        {showSpecificMissingBodyParts && (
+          <div role="status" className="rounded-xl border border-amber-300/40 bg-amber-300/[0.12] px-3 py-2 text-xs leading-relaxed text-amber-50">
+            <span className="font-semibold">Keypoints needed:</span> {formatBodyParts(visibleMissingBodyParts)}
+          </div>
+        )}
 
         {pose && (
           <div className="grid grid-cols-4 gap-2 text-center text-[11px] text-white/60">

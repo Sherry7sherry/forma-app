@@ -238,17 +238,19 @@ describe('exercise mission state', () => {
     assert.equal(zero.data.synthetic, true)
   })
 
-  it('records failed Camera and Calibration standards as internal-only failures with diagnostics', () => {
+  it('records failed Camera and Calibration standards with missing region evidence as internal-only failures', () => {
     const camera = missionEventForQuickAction('camera-placement', automaticMovement, 'calibrating', undefined, {
       visibleLandmarks: 0,
       trackedLandmarks: 0,
       bodyConfidence: 0,
       framingStatus: 'no-body',
+      missingBodyParts: 'both hips, both ankles',
     })
     assert.equal(camera.eventType, 'blocker')
     assert.equal(camera.data.action, 'camera-placement')
     assert.equal(camera.data.outcome, 'fail')
     assert.equal(camera.data.visibleLandmarks, 0)
+    assert.equal(camera.data.missingBodyParts, 'both hips, both ankles')
     assert.equal(camera.data.productionEvidence, false)
 
     const calibration = missionEventForQuickAction('calibration-stuck', automaticMovement, 'calibrating', undefined, {
