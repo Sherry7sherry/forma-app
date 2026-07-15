@@ -97,12 +97,14 @@ export function DirectedExerciseRunner({
   }, [movement.id, scenario.repeats])
 
   const handleQuickAction = useCallback(async (action: ExerciseMissionQuickAction, evidence: ExerciseMissionCountEvidence = {}) => {
-    await recordQuickAction(action, currentPhase, evidence)
+    const persistence = recordQuickAction(action, currentPhase, evidence)
     if (action === 'count-pass') {
+      await persistence
       router.push(nextExerciseUrl())
       return
     }
     advanceFullRun(action)
+    await persistence
   }, [advanceFullRun, currentPhase, nextExerciseUrl, recordQuickAction, router])
 
   const continueToNextMovement = useCallback(async () => {

@@ -67,12 +67,14 @@ export function DirectedAssessmentRunner({
     action: ExerciseMissionQuickAction,
     evidence: ExerciseMissionCountEvidence = {},
   ) => {
-    await recordQuickAction(action, currentPhase, evidence)
+    const persistence = recordQuickAction(action, currentPhase, evidence)
     if (action === 'count-pass') {
+      await persistence
       router.push(nextAssessmentUrl())
       return
     }
     advanceFullRun(action)
+    await persistence
   }, [advanceFullRun, currentPhase, nextAssessmentUrl, recordQuickAction, router])
 
   const continueToNextMovement = useCallback(async () => {

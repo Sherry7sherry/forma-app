@@ -151,6 +151,16 @@ describe('directed runner controls', () => {
     assert.match(exerciseRunner, /action === 'count-pass'[\s\S]*?router\.push\(nextExerciseUrl\(\)\)/)
   })
 
+  it('does not block full-run phase advancement on quick-action persistence', () => {
+    for (const name of ['DirectedAssessmentRunner.tsx', 'DirectedExerciseRunner.tsx']) {
+      const source = readFileSync(`components/internalTesting/${name}`, 'utf8')
+
+      assert.match(source, /const persistence = recordQuickAction\(action,\s*currentPhase,\s*evidence\)/)
+      assert.match(source, /advanceFullRun\(action\)[\s\S]*?await persistence/)
+      assert.doesNotMatch(source, /await recordQuickAction\(action,\s*currentPhase,\s*evidence\)[\s\S]*?advanceFullRun\(action\)/)
+    }
+  })
+
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
