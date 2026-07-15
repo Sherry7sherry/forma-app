@@ -169,6 +169,17 @@ describe('directed runner controls', () => {
     assert.doesNotMatch(panel, /canRecordCameraFromAttempt = currentPhase === 'camera' && mission\.canLogCameraSuccess/)
   })
 
+  it('does not treat high confidence without landmarks as camera-ready guidance', () => {
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(panel, /pose\.visibleLandmarks === 0 && pose\.trackedLandmarks === 0/)
+    assert.match(panel, /We need body landmarks, not just confidence/)
+    assert.match(panel, /0 body landmarks/)
+    assert.match(panel, /Best landmarks this attempt/)
+    assert.match(panel, /confidence signal/)
+    assert.doesNotMatch(panel, /return 'Hold still with your whole body in frame\.'/)
+  })
+
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
@@ -226,8 +237,8 @@ describe('directed runner controls', () => {
     assert.match(panel, /Log Tracking flicker only if it dropped during the movement/)
     assert.match(panel, /canRecordCameraFromAttempt/)
     assert.match(panel, /canRecordCalibrationFromAttempt/)
-    assert.match(panel, /Best seen this attempt/)
-    assert.match(panel, /Last detected/)
+    assert.match(panel, /Best landmarks this attempt/)
+    assert.match(panel, /Last signal/)
     assert.match(panel, /attemptBestVisibleLandmarks/)
     assert.match(panel, /disabled:bg-white\/\[0\.12\]/)
     assert.match(panel, /disabled:text-white\/35/)
@@ -257,7 +268,7 @@ describe('directed runner controls', () => {
 
     assert.match(panel, /max-h-\[calc\(100dvh-1\.5rem\)\]/)
     assert.match(panel, /overflow-y-auto/)
-    assert.match(panel, /best confidence/)
+    assert.match(panel, /confidence signal/)
     assert.match(panel, /High confidence alone is not a camera pass/)
     assert.doesNotMatch(panel, /best body/)
   })
