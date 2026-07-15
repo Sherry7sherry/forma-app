@@ -91,15 +91,19 @@ export function DirectedExerciseRunner({
     }
   }, [counter, isFullRun])
 
-  const handleQuickAction = useCallback(async (action: ExerciseMissionQuickAction, evidence: ExerciseMissionCountEvidence = {}) => {
-    await recordQuickAction(action, currentPhase, evidence)
-    advanceFullRun(action)
-  }, [advanceFullRun, currentPhase, recordQuickAction])
-
   const nextExerciseUrl = useCallback(() => {
     const next = nextExerciseScenario(movement.id, scenario.repeats)
     return next ? `/internal/test-lab/run?${next}` : '/internal/test-lab'
   }, [movement.id, scenario.repeats])
+
+  const handleQuickAction = useCallback(async (action: ExerciseMissionQuickAction, evidence: ExerciseMissionCountEvidence = {}) => {
+    await recordQuickAction(action, currentPhase, evidence)
+    if (action === 'count-pass') {
+      router.push(nextExerciseUrl())
+      return
+    }
+    advanceFullRun(action)
+  }, [advanceFullRun, currentPhase, nextExerciseUrl, recordQuickAction, router])
 
   const continueToNextMovement = useCallback(async () => {
     await forceContinue(currentPhase)
