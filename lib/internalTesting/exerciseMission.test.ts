@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import {
   deriveExerciseMissionState,
   missionEventForQuickAction,
+  poseSnapshotFromResult,
   type ExerciseMissionPoseSnapshot,
 } from './exerciseMission.js'
 import type { ExerciseTestableMovement } from './types.js'
@@ -40,11 +41,38 @@ function pose(overrides: Partial<ExerciseMissionPoseSnapshot> = {}): ExerciseMis
     deviceClass: 'phone',
     orientation: 'landscape',
     feedbackTypes: ['good'],
+    missingBodyParts: [],
     ...overrides,
   }
 }
 
 describe('exercise mission state', () => {
+  it('derives missing body parts from the active production tracking requirement', () => {
+    const landmarks = Array.from({ length: 33 }, () => ({ visibility: 0.9 }))
+    landmarks[11].visibility = 0.2
+    landmarks[12].visibility = 0.2
+    landmarks[28].visibility = 0.2
+
+    const snapshot = poseSnapshotFromResult({
+      framingStatus: 'partial',
+      bodyConfidence: 0.62,
+      feedback: [],
+      landmarks,
+      diagnostics: {
+        visibleLandmarks: 1,
+        trackedLandmarks: 4,
+        detectionFps: 8.5,
+        deviceClass: 'tablet',
+        orientation: 'landscape',
+      },
+    }, {
+      landmarks: [11, 12, 27, 28],
+      minVisibility: 0.45,
+    })
+
+    assert.deepEqual(snapshot.missingBodyParts, ['both shoulders', 'right ankle'])
+  })
+
   it('keeps camera pass locked until the required body shape is in frame', () => {
     const noBody = deriveExerciseMissionState({
       movement: automaticMovement,

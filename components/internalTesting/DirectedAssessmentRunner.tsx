@@ -1,13 +1,14 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { ExerciseMissionPanel } from './ExerciseMissionPanel'
 import { InternalTestOverlay } from './InternalTestOverlay'
 import { useDirectedAttempt } from './useDirectedAttempt'
 import type { PoseResult } from '@/components/camera/PoseCamera'
+import { getExerciseTrackingProfile } from '@/lib/exerciseTracking'
 import {
   poseSnapshotFromResult,
   type ExerciseMissionCountEvidence,
@@ -37,6 +38,10 @@ export function DirectedAssessmentRunner({
   const [currentPhase, setCurrentPhase] = useState<ExerciseMissionPhase>(() => initialAssessmentPhase(scenario))
   const [pose, setPose] = useState<ExerciseMissionPoseSnapshot | null>(null)
   const attemptPhase = scenario.phase === 'full-run' ? 'full-run' : currentPhase
+  const trackingProfile = useMemo(
+    () => getExerciseTrackingProfile(movement.exerciseName, false),
+    [movement.exerciseName],
+  )
 
   useEffect(() => {
     setCurrentPhase(initialAssessmentPhase(scenario))
@@ -83,18 +88,25 @@ export function DirectedAssessmentRunner({
   }, [currentPhase, forceContinue, nextAssessmentUrl, router])
 
   const handlePoseResult = useCallback((result: PoseResult) => {
-    setPose(poseSnapshotFromResult(result))
+    setPose(poseSnapshotFromResult(result, {
+      landmarks: trackingProfile.landmarks,
+      minVisibility: trackingProfile.minVisibility,
+    }))
     recordPoseDiagnostics(result, currentPhase)
-  }, [currentPhase, recordPoseDiagnostics])
+  }, [currentPhase, recordPoseDiagnostics, trackingProfile])
 
   return (
     <div className="min-h-dvh bg-charcoal">
       <PoseCamera
         exerciseName={movement.exerciseName}
         formScoreSupported={false}
+        cameraOrientation={trackingProfile.cameraOrientation}
+        trackingLandmarks={trackingProfile.landmarks}
+        trackingMinVisibility={trackingProfile.minVisibility}
         fill
         overlayMode={currentPhase === 'camera' || currentPhase === 'calibrating' ? 'calibration' : 'minimal'}
         posePrecision="assessment"
+        framingRequirement={movement.postureFamily === 'seated' ? 'seated-torso' : 'full-body'}
         onPoseResult={handlePoseResult}
       />
       <ExerciseMissionPanel
