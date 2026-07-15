@@ -120,6 +120,8 @@ export function ExerciseMissionPanel({
       && mission.canLogCountSuccess
       && (mission.countMode !== 'automatic' || (aiRepCount ?? 0) > 0)
     )
+  const cameraReadyForHumanConfirmation = currentPhase === 'camera'
+    && (mission.canLogCameraSuccess || attemptHadCameraReady())
 
   useEffect(() => {
     setAttemptPoseSummary(EMPTY_ATTEMPT_POSE_SUMMARY)
@@ -129,24 +131,24 @@ export function ExerciseMissionPanel({
   }, [currentPhase, movement.id])
 
   useEffect(() => {
-    if (currentPhase === 'camera' && !mission.canLogCameraSuccess) {
+    if (currentPhase === 'camera' && !cameraReadyForHumanConfirmation) {
       voiceCoachRef.current.speak({
         key: `camera-guidance-${pose?.framingStatus ?? 'missing'}`,
         text: cameraGuidanceText(pose),
         cooldownMs: PHASE_GUIDANCE_COOLDOWN_MS,
       }, true)
     }
-  }, [currentPhase, mission.canLogCameraSuccess, pose])
+  }, [cameraReadyForHumanConfirmation, currentPhase, pose])
 
   useEffect(() => {
-    if (currentPhase !== 'camera' || !mission.canLogCameraSuccess) return
+    if (!cameraReadyForHumanConfirmation) return
     setNotice('Camera passed. Tap Log camera passed to confirm.')
     voiceCoachRef.current.speak({
       key: `camera-pass-ready-${movement.id}`,
       text: 'Camera passed. Please tap Log camera passed.',
       cooldownMs: PASS_CONFIRMATION_COOLDOWN_MS,
     }, true)
-  }, [currentPhase, mission.canLogCameraSuccess, movement.id])
+  }, [cameraReadyForHumanConfirmation, movement.id])
 
   useEffect(() => {
     if (currentPhase === 'calibrating' && !mission.canLogCalibrationSuccess) {
@@ -179,7 +181,7 @@ export function ExerciseMissionPanel({
   }, [countReadyForHumanConfirmation, movement.id])
 
   useEffect(() => {
-    if (currentPhase !== 'camera' || mission.canLogCameraSuccess) return
+    if (currentPhase !== 'camera' || cameraReadyForHumanConfirmation) return
     const timeoutId = window.setTimeout(() => {
       setNotice('Camera has not passed after 30s. Please log a camera issue.')
       voiceCoachRef.current.speak({
@@ -189,7 +191,7 @@ export function ExerciseMissionPanel({
       }, true)
     }, CAMERA_TIMEOUT_MS)
     return () => window.clearTimeout(timeoutId)
-  }, [currentPhase, mission.canLogCameraSuccess, movement.id])
+  }, [cameraReadyForHumanConfirmation, currentPhase, movement.id])
 
   useEffect(() => {
     if (currentPhase !== 'calibrating' || mission.canLogCalibrationSuccess) return
@@ -269,6 +271,10 @@ export function ExerciseMissionPanel({
   }
 
   function attemptHadCalibrationReady() {
+    return attemptHadCameraReady()
+  }
+
+  function attemptHadCameraReady() {
     const genericFullBodyReady = attemptPoseSummary.bestBodyConfidence >= 0.55
       && attemptPoseSummary.bestVisibleLandmarks >= 18
     const trackingProfileReady = attemptPoseSummary.bestTrackedLandmarks > 0
@@ -359,7 +365,7 @@ export function ExerciseMissionPanel({
   }
 
   function renderMissionBody() {
-    const canRecordCameraFromAttempt = currentPhase === 'camera' && mission.canLogCameraSuccess
+    const canRecordCameraFromAttempt = currentPhase === 'camera' && (mission.canLogCameraSuccess || attemptHadCameraReady())
     const canRecordCalibrationFromAttempt = currentPhase === 'calibrating' && (mission.canLogCalibrationSuccess || attemptHadCalibrationReady())
     const canRecordCountPassFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising')
       && mission.canLogCountSuccess

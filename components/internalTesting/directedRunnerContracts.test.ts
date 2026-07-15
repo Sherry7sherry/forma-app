@@ -161,6 +161,14 @@ describe('directed runner controls', () => {
     }
   })
 
+  it('keeps camera pass recordable after the tester walks back to tap controls', () => {
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(panel, /function attemptHadCameraReady\(\)/)
+    assert.match(panel, /canRecordCameraFromAttempt = currentPhase === 'camera' && \(mission\.canLogCameraSuccess \|\| attemptHadCameraReady\(\)\)/)
+    assert.doesNotMatch(panel, /canRecordCameraFromAttempt = currentPhase === 'camera' && mission\.canLogCameraSuccess/)
+  })
+
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
     const hook = readFileSync('components/internalTesting/useDirectedAttempt.ts', 'utf8')
