@@ -286,7 +286,7 @@ export function ExerciseMissionPanel({
 
   function attemptRecommendation() {
     if (currentPhase === 'camera' && !mission.canLogCameraSuccess) {
-      return 'Recommended record: Keep adjusting placement until Camera passes. If it still has not passed after 30s, log Camera issue.'
+      return 'Recommended record: High confidence alone is not a camera pass. Keep adjusting placement until head, torso, hips, and required limbs are visible. If it still has not passed after 30s, log Camera issue.'
     }
     if (currentPhase === 'calibrating' && !mission.canLogCalibrationSuccess) {
       return 'Recommended record: Keep holding the required starting shape. If calibration still has not passed after 30s, log Calibration issue.'
@@ -388,7 +388,7 @@ export function ExerciseMissionPanel({
           <div className="grid grid-cols-4 gap-2 text-center text-[11px] text-white/60">
             <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{pose.visibleLandmarks}</span>visible</div>
             <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{pose.trackedLandmarks}</span>tracked</div>
-            <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{Math.round(pose.bodyConfidence * 100)}%</span>body</div>
+            <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{Math.round(pose.bodyConfidence * 100)}%</span>confidence</div>
             <div className="rounded-xl bg-white/[0.07] p-2"><span className="block text-white">{pose.detectionFps}</span>fps</div>
           </div>
         )}
@@ -402,7 +402,7 @@ export function ExerciseMissionPanel({
             </div>
             <div className="rounded-xl bg-white/[0.06] p-2">
               <span className="block text-white">{Math.round(attemptPoseSummary.bestBodyConfidence * 100)}%</span>
-              best body
+              best confidence
             </div>
             <div className="rounded-xl bg-white/[0.06] p-2">
               <span className="block text-white">{attemptLastDetectedLabel()}</span>
@@ -612,7 +612,7 @@ export function ExerciseMissionPanel({
         )}
       </section>
 
-      <section className="pointer-events-auto fixed left-3 top-3 z-[90] hidden w-[min(28rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.4rem] border border-white/[0.15] bg-slate-950/[0.88] text-white shadow-2xl backdrop-blur-xl lg:block">
+      <section className="pointer-events-auto fixed left-3 top-3 z-[90] hidden max-h-[calc(100dvh-1.5rem)] w-[min(28rem,calc(100vw-1.5rem))] overflow-y-auto rounded-[1.4rem] border border-white/[0.15] bg-slate-950/[0.88] text-white shadow-2xl backdrop-blur-xl lg:block">
         <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(122,158,142,0.45),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.02))] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>

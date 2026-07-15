@@ -234,6 +234,16 @@ describe('directed runner controls', () => {
     assert.doesNotMatch(overlay, /sm:bottom-3|sm:top-auto/)
   })
 
+  it('keeps desktop mission controls scrollable and labels confidence separately from camera pass', () => {
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(panel, /max-h-\[calc\(100dvh-1\.5rem\)\]/)
+    assert.match(panel, /overflow-y-auto/)
+    assert.match(panel, /best confidence/)
+    assert.match(panel, /High confidence alone is not a camera pass/)
+    assert.doesNotMatch(panel, /best body/)
+  })
+
   it('shares the production rep counter with the directed exercise lab', () => {
     const session = readFileSync('app/session/[id]/SessionPlayer.tsx', 'utf8')
     const runner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
