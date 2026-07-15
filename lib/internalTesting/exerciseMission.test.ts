@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import {
+  canRecordCountPassFromAttempt,
   deriveExerciseMissionState,
   missionEventForQuickAction,
   poseSnapshotFromResult,
@@ -47,6 +48,42 @@ function pose(overrides: Partial<ExerciseMissionPoseSnapshot> = {}): ExerciseMis
 }
 
 describe('exercise mission state', () => {
+  it('keeps count pass recordable after the tester leaves the frame to tap controls', () => {
+    assert.equal(canRecordCountPassFromAttempt({
+      phase: 'exercising',
+      countMode: 'automatic',
+      currentBodyReady: false,
+      attemptBodyReady: true,
+      aiRepCount: 1,
+    }), true)
+
+    assert.equal(canRecordCountPassFromAttempt({
+      phase: 'capture',
+      countMode: 'manual',
+      currentBodyReady: false,
+      attemptBodyReady: true,
+      aiRepCount: null,
+    }), true)
+  })
+
+  it('does not mark an automatic count pass when AI count stayed at zero', () => {
+    assert.equal(canRecordCountPassFromAttempt({
+      phase: 'exercising',
+      countMode: 'automatic',
+      currentBodyReady: false,
+      attemptBodyReady: true,
+      aiRepCount: 0,
+    }), false)
+
+    assert.equal(canRecordCountPassFromAttempt({
+      phase: 'exercising',
+      countMode: 'automatic',
+      currentBodyReady: true,
+      attemptBodyReady: true,
+      aiRepCount: null,
+    }), false)
+  })
+
   it('derives missing body parts from the active production tracking requirement', () => {
     const landmarks = Array.from({ length: 33 }, () => ({ visibility: 0.9 }))
     landmarks[11].visibility = 0.2
