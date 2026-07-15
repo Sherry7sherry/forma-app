@@ -24,6 +24,8 @@
 **Files:**
 - Create: `lib/internalTesting/landmarkGuidance.ts`
 - Create: `lib/internalTesting/landmarkGuidance.test.ts`
+- Modify: `tsconfig.test.json`
+- Modify: `package.json`
 
 **Interfaces:**
 - Consumes: landmark objects with optional `visibility`, production `requiredLandmarks`, and production `minVisibility`.
@@ -89,7 +91,7 @@ Expected: PASS for bilateral grouping, single-side labels, threshold equality, a
 - [ ] **Step 5: Commit Task 1**
 
 ```bash
-git add lib/internalTesting/landmarkGuidance.ts lib/internalTesting/landmarkGuidance.test.ts
+git add lib/internalTesting/landmarkGuidance.ts lib/internalTesting/landmarkGuidance.test.ts tsconfig.test.json package.json docs/superpowers/plans/2026-07-15-test-lab-specific-landmark-guidance.md
 git commit -m "feat: describe missing tracking landmarks"
 ```
 
@@ -229,4 +231,3 @@ Push `codex/test-lab-specific-landmark-guidance`, create a ready PR summarizing 
 - [ ] **Step 3: Merge and verify deployment**
 
 Merge only after checks pass. Poll the merge commit status until Vercel reports `success`, then report the PR URL, merge commit, and deployment record.
-
