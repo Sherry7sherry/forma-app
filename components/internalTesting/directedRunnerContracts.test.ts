@@ -105,10 +105,31 @@ describe('directed runner controls', () => {
     assert.match(form, /Advanced jump/)
     assert.doesNotMatch(form, />Phase</)
     assert.match(runner, /scenario\.phase === 'full-run'/)
+    assert.match(runner, /'camera'/)
+    assert.match(runner, /setCurrentPhase\('calibrating'\)/)
     assert.match(runner, /setCurrentPhase\('exercising'\)/)
     assert.match(runner, /phase=\{currentPhase\}/)
     assert.match(panel, /currentPhase/)
     assert.doesNotMatch(panel, /scenario\.phase === 'exercising'/)
+  })
+
+  it('gates full-run tests through camera, calibration, then count', () => {
+    const assessmentRunner = readFileSync('components/internalTesting/DirectedAssessmentRunner.tsx', 'utf8')
+    const exerciseRunner = readFileSync('components/internalTesting/DirectedExerciseRunner.tsx', 'utf8')
+    const panel = readFileSync('components/internalTesting/ExerciseMissionPanel.tsx', 'utf8')
+
+    assert.match(assessmentRunner, /initialAssessmentPhase[\s\S]*?'camera'/)
+    assert.match(exerciseRunner, /initialExercisePhase[\s\S]*?'camera'/)
+    assert.match(assessmentRunner, /action === 'camera-pass'[\s\S]*?setCurrentPhase\('calibrating'\)/)
+    assert.match(exerciseRunner, /action === 'camera-pass'[\s\S]*?setCurrentPhase\('calibrating'\)/)
+    assert.match(assessmentRunner, /action === 'calibration-pass'[\s\S]*?setCurrentPhase\('capture'\)/)
+    assert.match(exerciseRunner, /action === 'calibration-pass'[\s\S]*?setCurrentPhase\('exercising'\)/)
+    assert.match(panel, /CAMERA_TIMEOUT_MS = 30_000/)
+    assert.match(panel, /CALIBRATION_TIMEOUT_MS = 30_000/)
+    assert.match(panel, /COUNT_ZERO_TIMEOUT_MS = 60_000/)
+    assert.match(panel, /Please log a camera issue/)
+    assert.match(panel, /Please log a calibration issue/)
+    assert.match(panel, /Please log a count issue/)
   })
 
   it('renders a mission board with exercise phase feedback and quick internal annotations', () => {
@@ -223,7 +244,7 @@ describe('directed runner controls', () => {
       assert.match(source, /onRecord=\{recordIssue\}/)
       assert.match(source, name === 'DirectedAssessmentRunner.tsx'
         ? /onForceContinue=\{continueToNextMovement\}/
-        : /onForceContinue=\{continueCurrentPhase\}/)
+        : /onForceContinue=\{continueToNextMovement\}/)
       assert.doesNotMatch(source, /onRecord=\{\(\)=>\{\}\}/)
       assert.doesNotMatch(source, /onForceContinue=\{\(\)=>\{\}\}/)
     })

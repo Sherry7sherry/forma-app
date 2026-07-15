@@ -22,7 +22,7 @@ import type { AssessmentTestableMovement } from '@/lib/internalTesting/types'
 const PoseCamera = dynamic(() => import('@/components/camera/PoseCamera'), { ssr: false })
 
 function initialAssessmentPhase(scenario: TestScenario): ExerciseMissionPhase {
-  return scenario.phase === 'full-run' || scenario.phase === 'setup' ? 'calibrating' : scenario.phase
+  return scenario.phase === 'full-run' || scenario.phase === 'setup' ? 'camera' : scenario.phase
 }
 
 export function DirectedAssessmentRunner({
@@ -57,16 +57,18 @@ export function DirectedAssessmentRunner({
     return next ? `/internal/test-lab/run?${next}` : '/internal/test-lab'
   }, [movement.id])
 
-  const advanceFullRun = useCallback(() => {
-    if (isFullRun && currentPhase !== 'capture') setCurrentPhase('capture')
-  }, [currentPhase, isFullRun])
+  const advanceFullRun = useCallback((action: ExerciseMissionQuickAction) => {
+    if (!isFullRun) return
+    if (action === 'camera-pass') setCurrentPhase('calibrating')
+    if (action === 'calibration-pass' || action === 'calibration-ready') setCurrentPhase('capture')
+  }, [isFullRun])
 
   const handleQuickAction = useCallback(async (
     action: ExerciseMissionQuickAction,
     evidence: ExerciseMissionCountEvidence = {},
   ) => {
     await recordQuickAction(action, currentPhase, evidence)
-    if (action === 'calibration-pass' || action === 'calibration-ready') advanceFullRun()
+    advanceFullRun(action)
   }, [advanceFullRun, currentPhase, recordQuickAction])
 
   const continueToNextMovement = useCallback(async () => {
@@ -85,7 +87,7 @@ export function DirectedAssessmentRunner({
         exerciseName={movement.exerciseName}
         formScoreSupported={false}
         fill
-        overlayMode={currentPhase === 'calibrating' ? 'calibration' : 'minimal'}
+        overlayMode={currentPhase === 'camera' || currentPhase === 'calibrating' ? 'calibration' : 'minimal'}
         posePrecision="assessment"
         onPoseResult={handlePoseResult}
       />

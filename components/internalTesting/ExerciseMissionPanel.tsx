@@ -25,6 +25,10 @@ const QUICK_ACTIONS: { action: ExerciseMissionQuickAction; label: string }[] = [
 const PASS_BUTTON_CLASS = 'rounded-xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/35 disabled:opacity-100'
 const COUNT_PASS_BUTTON_CLASS = 'rounded-xl bg-sage-light px-3 py-2 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/35 disabled:opacity-100'
 const FAIL_BUTTON_CLASS = 'rounded-xl border border-rose-300/35 bg-rose-300/[0.16] px-3 py-2 text-xs font-semibold text-rose-50 active:bg-rose-300/[0.24] disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/35 disabled:opacity-100'
+const CAMERA_TIMEOUT_MS = 30_000
+const CALIBRATION_TIMEOUT_MS = 30_000
+const COUNT_ZERO_TIMEOUT_MS = 60_000
+const PHASE_GUIDANCE_COOLDOWN_MS = 8_000
 
 interface AttemptPoseSummary {
   sawBody: boolean
@@ -56,6 +60,29 @@ function stateClass(state: string) {
   return 'border-white/10 bg-white/[0.05] text-white/55'
 }
 
+function cameraGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
+  if (!pose || pose.framingStatus === 'no-body') {
+    return 'Move back or tilt the camera until your head and feet are both visible.'
+  }
+  if (pose.framingStatus === 'upper-body') {
+    return 'Lower or tilt the camera down so your legs and feet are visible.'
+  }
+  if (pose.framingStatus === 'partial') {
+    return 'Center your whole body in the frame and improve the lighting.'
+  }
+  return 'Hold still with your whole body in frame.'
+}
+
+function calibrationGuidanceText(pose: ExerciseMissionPoseSnapshot | null) {
+  if (!pose || pose.framingStatus === 'no-body') {
+    return 'I cannot calibrate yet. Bring your whole body back into the frame.'
+  }
+  if (pose.bodyConfidence < 0.55) {
+    return 'Hold your starting position and improve lighting so calibration can lock.'
+  }
+  return 'Keep the required body shape still and fully visible for calibration.'
+}
+
 export function ExerciseMissionPanel({
   movement,
   scenario,
@@ -85,12 +112,73 @@ export function ExerciseMissionPanel({
     () => deriveExerciseMissionState({ movement, phase: currentPhase, repeats: scenario.repeats, pose }),
     [currentPhase, movement, pose, scenario.repeats],
   )
+  const aiRepCount = counter?.repCount ?? null
 
   useEffect(() => {
     setAttemptPoseSummary(EMPTY_ATTEMPT_POSE_SUMMARY)
     setLastDetectedAgeMs(null)
+    setNotice(null)
     voiceCoachRef.current.reset()
   }, [currentPhase, movement.id])
+
+  useEffect(() => {
+    if (currentPhase === 'camera' && !mission.canLogCameraSuccess) {
+      voiceCoachRef.current.speak({
+        key: `camera-guidance-${pose?.framingStatus ?? 'missing'}`,
+        text: cameraGuidanceText(pose),
+        cooldownMs: PHASE_GUIDANCE_COOLDOWN_MS,
+      }, true)
+    }
+  }, [currentPhase, mission.canLogCameraSuccess, pose])
+
+  useEffect(() => {
+    if (currentPhase === 'calibrating' && !mission.canLogCalibrationSuccess) {
+      voiceCoachRef.current.speak({
+        key: `calibration-guidance-${pose?.framingStatus ?? 'missing'}`,
+        text: calibrationGuidanceText(pose),
+        cooldownMs: PHASE_GUIDANCE_COOLDOWN_MS,
+      }, true)
+    }
+  }, [currentPhase, mission.canLogCalibrationSuccess, pose])
+
+  useEffect(() => {
+    if (currentPhase !== 'camera' || mission.canLogCameraSuccess) return
+    const timeoutId = window.setTimeout(() => {
+      setNotice('Camera has not passed after 30s. Please log a camera issue.')
+      voiceCoachRef.current.speak({
+        key: `camera-timeout-${movement.id}`,
+        text: 'Camera has not passed. Please log a camera issue.',
+        cooldownMs: 0,
+      }, true)
+    }, CAMERA_TIMEOUT_MS)
+    return () => window.clearTimeout(timeoutId)
+  }, [currentPhase, mission.canLogCameraSuccess, movement.id])
+
+  useEffect(() => {
+    if (currentPhase !== 'calibrating' || mission.canLogCalibrationSuccess) return
+    const timeoutId = window.setTimeout(() => {
+      setNotice('Calibration has not passed after 30s. Please log a calibration issue.')
+      voiceCoachRef.current.speak({
+        key: `calibration-timeout-${movement.id}`,
+        text: 'Calibration has not passed. Please log a calibration issue.',
+        cooldownMs: 0,
+      }, true)
+    }, CALIBRATION_TIMEOUT_MS)
+    return () => window.clearTimeout(timeoutId)
+  }, [currentPhase, mission.canLogCalibrationSuccess, movement.id])
+
+  useEffect(() => {
+    if (currentPhase !== 'exercising' || mission.countMode !== 'automatic' || aiRepCount === null || aiRepCount > 0) return
+    const timeoutId = window.setTimeout(() => {
+      setNotice('AI count is still 0 after 1 minute. Please log a count issue.')
+      voiceCoachRef.current.speak({
+        key: `count-zero-timeout-${movement.id}`,
+        text: 'AI count is still zero. Please log a count issue.',
+        cooldownMs: 0,
+      }, true)
+    }, COUNT_ZERO_TIMEOUT_MS)
+    return () => window.clearTimeout(timeoutId)
+  }, [aiRepCount, currentPhase, mission.countMode, movement.id])
 
   useEffect(() => {
     if (!pose) return
@@ -160,6 +248,12 @@ export function ExerciseMissionPanel({
   }
 
   function attemptRecommendation() {
+    if (currentPhase === 'camera' && !mission.canLogCameraSuccess) {
+      return 'Recommended record: Keep adjusting placement until Camera passes. If it still has not passed after 30s, log Camera issue.'
+    }
+    if (currentPhase === 'calibrating' && !mission.canLogCalibrationSuccess) {
+      return 'Recommended record: Keep holding the required starting shape. If calibration still has not passed after 30s, log Calibration issue.'
+    }
     if (attemptPoseSummary.sawBody && currentBodyMissing()) {
       return 'Recommended record: If detection appeared and then dropped only after you returned to the screen, still record the movement result as pass. Log Tracking flicker only if it dropped during the movement or capture.'
     }
@@ -228,9 +322,12 @@ export function ExerciseMissionPanel({
   }
 
   function renderMissionBody() {
-    const canRecordCameraFromAttempt = mission.canLogCameraSuccess || attemptPoseSummary.sawBody
-    const canRecordCalibrationFromAttempt = mission.canLogCalibrationSuccess || attemptHadCalibrationReady()
-    const canRecordCountFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising') && attemptPoseSummary.sawBody
+    const canRecordCameraFromAttempt = currentPhase === 'camera' && mission.canLogCameraSuccess
+    const canRecordCalibrationFromAttempt = currentPhase === 'calibrating' && (mission.canLogCalibrationSuccess || attemptHadCalibrationReady())
+    const canRecordCountPassFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising')
+      && mission.canLogCountSuccess
+      && (!counter || counter.repCount > 0)
+    const canRecordCountFailureFromAttempt = (currentPhase === 'capture' || currentPhase === 'exercising') && attemptPoseSummary.sawBody
 
     return (
       <div className="grid gap-3 p-4">
@@ -364,7 +461,7 @@ export function ExerciseMissionPanel({
               <div className="rounded-xl bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/75">Count</div>
               <button
                 type="button"
-                disabled={!canRecordCountFromAttempt}
+                disabled={!canRecordCountPassFromAttempt}
                 onClick={() => void run(
                   () => onQuickAction('count-pass', countDiagnosticEvidence()),
                   'Count pass logged.',
@@ -376,7 +473,7 @@ export function ExerciseMissionPanel({
               </button>
               <button
                 type="button"
-                disabled={!canRecordCountFromAttempt}
+                disabled={!canRecordCountFailureFromAttempt}
                 onClick={() => void run(
                   () => onQuickAction(countFailureAction(), countDiagnosticEvidence()),
                   'Count failed logged.',

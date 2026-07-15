@@ -1,6 +1,6 @@
 import { getTestableMovement } from './movementRegistry'
 
-export const TEST_SCENARIO_PHASES = ['full-run', 'setup', 'capture', 'calibrating', 'exercising'] as const
+export const TEST_SCENARIO_PHASES = ['full-run', 'setup', 'camera', 'capture', 'calibrating', 'exercising'] as const
 export type TestScenarioPhase = typeof TEST_SCENARIO_PHASES[number]
 
 export interface TestScenario {
